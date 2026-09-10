@@ -58,6 +58,17 @@ def print_human(data):
         for note in data.get("notes", []):
             print(f"note: {note}")
         return
+    if (
+        isinstance(data, dict)
+        and isinstance(data.get("detectors"), list)
+        and (not data["detectors"] or isinstance(data["detectors"][0], str))
+    ):
+        print(f"Community [{data.get('ref', '?')}]: {len(data['detectors'])} detector(s)")
+        for did in data["detectors"]:
+            print(f"  {did}")
+        if data.get("error"):
+            print(f"error: {data['error']}")
+        return
     if isinstance(data, dict) and "ok" in data and isinstance(data.get("detectors"), list):
         print("verify: " + ("OK" if data["ok"] else "FAIL"))
         for r in data["detectors"]:
@@ -565,6 +576,26 @@ def cmd_update(a):
     }
 
 
+# trace:v1 id=impl.bugcorpus-community.cli work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_community(a):
+    from pathlib import Path
+
+    from . import community
+
+    repo = store.root()
+    if a.ccmd == "export":
+        return community.export_detector(repo, a.id, Path(a.output))
+    if a.ccmd == "import":
+        return community.import_bundle(repo, Path(a.path), force=a.force)
+    if a.ccmd == "list":
+        return community.list_community(repo, ref=a.ref)
+    if a.ccmd == "install":
+        return community.install_from_ref(repo, ref=a.ref, did=a.detector, force=a.force)
+    if a.ccmd == "publish":
+        return community.publish(repo, base=a.base, title=a.title, body=a.body)
+    raise SystemExit(f"unknown community command {a.ccmd}")
+
+
 # trace:exempt reason=thin-cli-dispatch
 def cmd_export(a):
     from .sarif import to_sarif
@@ -830,6 +861,30 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--diff", default=None)
     s.add_argument("--detector", action="append", default=None)
     s.set_defaults(fn=cmd_scan)
+
+    s = sub.add_parser("community")
+    cs = s.add_subparsers(dest="ccmd", required=True)
+    c = cs.add_parser("export")
+    c.add_argument("id")
+    c.add_argument("--output", default=".")
+    c.set_defaults(fn=cmd_community)
+    c = cs.add_parser("import")
+    c.add_argument("path")
+    c.add_argument("--force", action="store_true")
+    c.set_defaults(fn=cmd_community)
+    c = cs.add_parser("list")
+    c.add_argument("--ref", default="community")
+    c.set_defaults(fn=cmd_community)
+    c = cs.add_parser("install")
+    c.add_argument("--ref", default="community")
+    c.add_argument("--detector", default=None)
+    c.add_argument("--force", action="store_true")
+    c.set_defaults(fn=cmd_community)
+    c = cs.add_parser("publish")
+    c.add_argument("--base", default="community")
+    c.add_argument("--title", default="")
+    c.add_argument("--body", default="")
+    c.set_defaults(fn=cmd_community)
 
     s = sub.add_parser("detector")
     ds = s.add_subparsers(dest="dcmd", required=True)

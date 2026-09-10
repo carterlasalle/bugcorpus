@@ -255,7 +255,8 @@ annotations from `bugcorpus export sarif` (advisory; the scan gate decides).
 `coverage` (bugs × engines plus family recall rollups, from live verification),
 `scan [--all|--changed|--diff|--profile]`, `detector list|show|run`,
 `promote --to`, `suppress`, `baseline [--record]`, `doctor`,
-`export sarif`, `mine-history`, `mcp`, `hooks post-tool-use|session-stop|session-start`.
+`export sarif`, `mine-history`, `mcp`, `hooks post-tool-use|session-stop|session-start`,
+`community export|import|list|install|publish`.
 
 ## Agent adapters
 
@@ -277,6 +278,30 @@ detector fires, always exit 0 (advisory — CI enforces). Session start runs
 `uv run bugcorpus hooks session-start`, which announces the verified load
 state (or stays silent outside enrolled repos). Details and alternatives in
 `docs/adr/001-bare-checkout-adapters.md`.
+
+## Community detectors
+
+<!-- trace:v1 id=doc.bugcorpus-readme-community work=WORK-BUG-ZJBDCZZ0 -->
+
+Detectors are portable. The long-lived `community` branch collects
+shared detectors; contributions arrive as pull requests against it so
+every shared detector gets a security review before anyone installs it.
+Detectors are executable code — treat them like dependencies, not data.
+
+```sh
+# share one of yours (pushes your branch, opens a PR against community)
+bugcorpus community export my-detector --output /tmp/share
+bugcorpus community publish --base community
+# use someone else's (always installs as shadow; promote locally after review)
+bugcorpus community list --ref community
+bugcorpus community install --ref community --detector their-detector
+```
+
+Rules: imports never land above `shadow` (fixtures must verify, otherwise
+`draft`); id collisions with differing content refuse unless `--force`;
+only minimized fixtures travel — production code stays in your repo. The
+`community` branch is never merged into `main`, so shared code stays out
+of default checkouts and CI until you curate it.
 
 ## Contributing
 
