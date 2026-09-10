@@ -361,4 +361,6 @@ ENGINES: dict[str, Engine] = {
 
 # trace:exempt reason=internal-detail
 def load_manifest(ddir: Path) -> dict:
-    return yaml.safe_load((ddir / "detector.yaml").read_text()) or {}
+    from .store import normalize_manifest
+
+    return normalize_manifest(yaml.safe_load((ddir / "detector.yaml").read_text()) or {})

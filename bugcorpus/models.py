@@ -99,6 +99,14 @@ class Detector:
     supersedes: list = field(default_factory=list)
     requires_full_scan: bool = False
     description: str = ""
+    severity: str = "medium"
+    confidence: str = "medium"
+    remediation: str = ""
+    patterns: list = field(default_factory=list)
+    rule_file: str = ""
+    config: str = ""
+    existing: dict = field(default_factory=dict)
+    run: list = field(default_factory=list)
 
     # trace:inherit impl.bugcorpus-models.detector reason=method-of-traced-contract
     def validate(self) -> list[str]:

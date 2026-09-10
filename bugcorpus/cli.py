@@ -90,7 +90,7 @@ def cmd_init(a):
         ):
             (c / sub).mkdir(parents=True, exist_ok=True)
         if not (c / "config.toml").exists():
-            (c / "config.toml").write_text(DEFAULT_CONFIG)
+            (c / "config.toml").write_text(render_config(detect_scan_includes(c.parent)))
         for name, content in SCHEMAS.items():
             (c / "schemas" / name).write_text(content)
         store.write_index(str(c.parent))
@@ -901,12 +901,69 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-DEFAULT_CONFIG = """# Bug Corpus configuration
+# trace:exempt reason=internal-detail
+LANG_GLOBS = {
+    ".py": "**/*.py",
+    ".ts": "**/*.ts",
+    ".tsx": "**/*.tsx",
+    ".js": "**/*.js",
+    ".jsx": "**/*.jsx",
+    ".mjs": "**/*.mjs",
+    ".cjs": "**/*.cjs",
+    ".go": "**/*.go",
+    ".rs": "**/*.rs",
+    ".java": "**/*.java",
+}
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".tox",
+        "dist",
+        "build",
+        "target",
+        "vendor",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+    }
+)
+
+
+# trace:v1 id=impl.bugcorpus-cli.scan-includes work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
+def detect_scan_includes(root: Path, cap: int = 8) -> list[str]:
+    """Census source extensions (pruned walk) into scan include patterns."""
+    import os as _os
+
+    counts: dict[str, int] = {}
+    seen = 0
+    for _dirpath, dirnames, filenames in _os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        for fn in filenames:
+            ext = Path(fn).suffix.lower()
+            if ext in LANG_GLOBS:
+                counts[ext] = counts.get(ext, 0) + 1
+        seen += len(filenames)
+        if seen > 50000:
+            break
+    exts = sorted(counts, key=lambda e: -counts[e])[:cap] or [".py"]
+    includes = [LANG_GLOBS[e] for e in exts]
+    includes.append(".bugcorpus/detectors/**/*.py")
+    includes.extend(f".bugcorpus/corpus/**/fixtures/**/*{e}" for e in exts)
+    return includes
+
+
+# trace:exempt reason=internal-detail
+def render_config(includes: list[str]) -> str:
+    inc = ", ".join(f'"{p}"' for p in includes)
+    return f"""# Bug Corpus configuration
 [corpus]
 root = ".bugcorpus"
 
 [scan]
-include = ["bugcorpus/**/*.py", ".bugcorpus/detectors/**/*.py", ".bugcorpus/corpus/**/fixtures/**/*.py"]
+include = [{inc}]
 exclude = [".venv/**", ".git/**", ".bugcorpus/cache/**"]
 timeout_seconds = 120
 profiles = ["fast", "pr", "full"]
@@ -920,6 +977,7 @@ adv_recall_blocking = 1.0
 file = ".bugcorpus/baseline.json"
 fail_on_new_blocking = true
 """
+
 
 SCHEMAS = {
     "bug-case.schema.json": '{"title":"bug-case","type":"object","required":["id","title","symptom","root_cause","violated_invariant"]}',

@@ -36,8 +36,16 @@ def bug_dir(cwd: str | None, bid: str) -> Path:
 
 # trace:exempt reason=internal-detail
 def detector_dir(cwd: str | None, did: str) -> Path:
-    # detectors live at .bugcorpus/detectors/<did>/ (flat; engine in manifest)
-    return cdir(cwd) / "detectors" / did
+    # detectors live at .bugcorpus/detectors/<did>/ or nested by engine
+    # group (.bugcorpus/detectors/<engine>/<did>/); engine is in the manifest.
+    base = cdir(cwd) / "detectors"
+    direct = base / did
+    if (direct / "detector.yaml").exists():
+        return direct
+    matches = sorted(p.parent for p in base.rglob("detector.yaml") if p.parent.name == did)
+    if matches:
+        return matches[0]
+    return direct
 
 
 # trace:exempt reason=internal-detail
@@ -80,11 +88,20 @@ def next_bug_id(cwd: str | None = None) -> str:
     return f"BC-{n:06d}"
 
 
+# trace:exempt reason=internal-detail
+def normalize_manifest(data: dict) -> dict:
+    """Fold legacy/spec-drifted keys into canonical form (doctor still flags them)."""
+    if not data.get("catches") and data.get("bug"):
+        data = dict(data)
+        data["catches"] = [data["bug"]] if isinstance(data["bug"], str) else list(data["bug"])
+    return data
+
+
 # trace:v1 id=impl.bugcorpus-store.load-detector work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
 def load_detector(cwd: str | None, did: str) -> tuple[Detector, Path]:
     d = detector_dir(cwd, did)
     manifest = d / "detector.yaml"
-    data = load_yaml(manifest)
+    data = normalize_manifest(load_yaml(manifest))
     known = {f for f in Detector.__dataclass_fields__}
     return Detector(**{k: v for k, v in data.items() if k in known}), d
 
@@ -100,6 +117,10 @@ def list_detectors(cwd: str | None = None) -> list[str]:
             out.append(p.name)
         elif p.is_file() and p.suffix in (".yaml", ".yml"):
             out.append(p.stem)  # legacy single-file layout
+    for manifest in base.rglob("detector.yaml"):
+        name = manifest.parent.name
+        if manifest.parent != base and name not in out:
+            out.append(name)  # engine-grouped layout, e.g. detectors/custom/<id>/
     return sorted(out)
 
 

@@ -118,7 +118,17 @@ def changed_files(repo: Path, diff: str | None) -> tuple[list[str], dict[str, se
 
 # trace:v1 id=impl.bugcorpus-scanner.enrich work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-8HPVNRVG
 def enrich(repo: Path, manifest: dict, raw: dict) -> Finding:
-    path = raw.get("path", "")
+    # Be liberal in what custom detectors emit: accept file/line aliases for
+    # path/start_line/end_line so third-party searchers keep working.
+    path = raw.get("path", "") or raw.get("file", "")
+    try:
+        start = int(raw.get("start_line", raw.get("line", 1)))
+    except (TypeError, ValueError):
+        start = 1
+    try:
+        end = int(raw.get("end_line", raw.get("line", start)))
+    except (TypeError, ValueError):
+        end = start
     try:
         rel = str(Path(path).relative_to(repo))
     except ValueError:
@@ -132,7 +142,7 @@ def enrich(repo: Path, manifest: dict, raw: dict) -> Finding:
             for node in _ast.walk(tree):
                 if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
                     continue
-                if node.lineno <= int(raw.get("start_line", 1)) <= (node.end_lineno or node.lineno):
+                if node.lineno <= start <= (node.end_lineno or node.lineno):
                     enc = node.name
         except (OSError, SyntaxError, ValueError):
             enc = ""
@@ -142,9 +152,9 @@ def enrich(repo: Path, manifest: dict, raw: dict) -> Finding:
     return Finding(
         detector_id=manifest["id"],
         path=rel,
-        start_line=int(raw.get("start_line", 1)),
+        start_line=start,
         start_column=int(raw.get("start_column", 1)),
-        end_line=int(raw.get("end_line", raw.get("start_line", 1))),
+        end_line=end,
         end_column=int(raw.get("end_column", 1)),
         severity=raw.get("severity", manifest.get("severity", "medium")),
         confidence=raw.get("confidence", manifest.get("confidence", "medium")),
