@@ -23,17 +23,23 @@ def _out(data, as_json: bool):
 # trace:exempt reason=internal-detail
 def print_human(data):
     if isinstance(data, dict) and "findings" in data and "counts" in data:
-        c = data["counts"]
         n_det = len(data.get("detectors", []))
-        print(
-            f"Bug Corpus\n{n_det} detectors\n"
-            f"{c.get('clean', 0)} passed\n"
-            f"{len(data.get('findings', []))} findings\n"
-            f"{c.get('unavailable', 0)} unavailable\n"
-            f"{c.get('detector-error', 0)} detector error"
-        )
+        print(f"Bug Corpus: {n_det} detectors")
+        for r in data.get("detectors", []):
+            n = len(r.get("findings", []))
+            print(
+                f"  {r.get('detector', '?')} [{r.get('state', '?')}]: "
+                f"{r.get('status', '?')}" + (f", {n} finding(s)" if n else "")
+            )
+        if data.get("blocking_failed"):
+            print("gate: FAIL (new blocking findings or detector errors)")
+        else:
+            print(
+                "gate: PASS (only blocking detectors gate; "
+                "warning/shadow findings never fail the build)"
+            )
         if data.get("new_findings"):
-            print("\nNEW FINDINGS")
+            print("\nNEW FINDINGS (not in baseline)")
             for f in data["new_findings"][:20]:
                 print(
                     f"{f.get('bug_family', '')} {f.get('detector_id', '')} "
@@ -45,7 +51,14 @@ def print_human(data):
 
         print(render_human(data))
         return
-    if isinstance(data, dict) and "ok" in data and "detectors" in data:
+    if isinstance(data, dict) and "bug_count" in data and "version" in data:
+        print(f"bugcorpus {data['version']} ({data.get('bin', '')})")
+        print(f"{data.get('bug_count', 0)} bugs, {data.get('detector_count', 0)} detectors indexed")
+        print("adapters: " + ("OK" if data.get("ok") else "FAIL"))
+        for note in data.get("notes", []):
+            print(f"note: {note}")
+        return
+    if isinstance(data, dict) and "ok" in data and isinstance(data.get("detectors"), list):
         print("verify: " + ("OK" if data["ok"] else "FAIL"))
         for r in data["detectors"]:
             m = r.get("metrics", {})
@@ -62,25 +75,32 @@ def print_human(data):
 
 # trace:exempt reason=thin-cli-dispatch
 def cmd_init(a):
+    from .adapters import install
+
     c = Path.cwd() / ".bugcorpus" if a.path == "." else Path(a.path) / ".bugcorpus"
-    if c.exists() and not a.force:
-        return {"ok": True, "msg": f"{c} already exists"}
-    for sub in (
-        "corpus",
-        "families",
-        "detectors",
-        "detector-tests",
-        "suppressions",
-        "schemas",
-        "generated",
-    ):
-        (c / sub).mkdir(parents=True, exist_ok=True)
-    if not (c / "config.toml").exists():
-        (c / "config.toml").write_text(DEFAULT_CONFIG)
-    for name, content in SCHEMAS.items():
-        (c / "schemas" / name).write_text(content)
-    store.write_index(str(c.parent))
-    return {"ok": True, "msg": f"initialized {c}"}
+    if not c.exists() or a.force:
+        for sub in (
+            "corpus",
+            "families",
+            "detectors",
+            "detector-tests",
+            "suppressions",
+            "schemas",
+            "generated",
+        ):
+            (c / sub).mkdir(parents=True, exist_ok=True)
+        if not (c / "config.toml").exists():
+            (c / "config.toml").write_text(DEFAULT_CONFIG)
+        for name, content in SCHEMAS.items():
+            (c / "schemas" / name).write_text(content)
+        store.write_index(str(c.parent))
+        msg = f"initialized {c}"
+    else:
+        msg = f"{c} already exists"
+    # init is the single setup command: corpus scaffold plus adapters,
+    # so a fresh repo is ready to open and run with nothing else to invoke.
+    adapters = install(str(c.parent))
+    return {"ok": adapters["ok"], "msg": msg, "bin": adapters.get("bin")}
 
 
 # trace:v1 id=impl.bugcorpus-cli.learn work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
@@ -315,8 +335,15 @@ def cmd_promote(a):
                 "error": "thresholds unmet; run bugcorpus verify --detector " + a.id,
                 "verify": v,
             }
-    m["state"] = a.to
-    mp.write_text(_yaml.safe_dump(m, sort_keys=False))
+    import re as _re
+
+    # surgical state change: a full YAML re-dump would strip comments and
+    # restyle the manifest, so only the state line is touched.
+    text = mp.read_text()
+    new_text, n = _re.subn(
+        r"^state:\s*\S+.*$", f"state: {a.to}", text, count=1, flags=_re.MULTILINE
+    )
+    mp.write_text(new_text if n else text.rstrip("\n") + f"\nstate: {a.to}\n")
     # lineage: record promotion in bug records
     for bid in m.get("catches", []):
         try:
@@ -353,6 +380,22 @@ def cmd_suppress(a):
     return {"ok": True, "entry": entry}
 
 
+# trace:v1 id=impl.bugcorpus-cli.baseline work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+def cmd_baseline(a):
+    """List current findings, or record them as the tracked-debt baseline."""
+    import json as _json
+
+    from .scanner import run_scan
+
+    res = run_scan(profile="full")
+    fps = sorted({f["fingerprint"] for f in res["findings"]})
+    if not a.record:
+        return {"findings": len(fps), "fingerprints": fps}
+    p = store.cdir() / "baseline.json"
+    p.write_text(_json.dumps({"fingerprints": fps}, indent=2) + "\n")
+    return {"ok": True, "recorded": len(fps), "path": str(p)}
+
+
 # trace:exempt reason=thin-cli-dispatch
 def cmd_doctor(a):
     _ = a
@@ -366,8 +409,29 @@ def cmd_adapters(a):
     from .adapters import check, install
 
     if a.check:
-        return check(store.root(), harnesses=a.only)
-    return install(store.root(), harnesses=a.only)
+        return check(store.root(), harnesses=a.only, bin=a.bin)
+    return install(store.root(), harnesses=a.only, bin=a.bin)
+
+
+# trace:v1 id=impl.bugcorpus-cli.update work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_update(a):
+    """Refresh a repo to the running distribution: adapters + indexes."""
+    from . import __version__
+    from .adapters import install
+
+    _ = a
+    root = store.root()
+    report = install(root)
+    idx = store.write_index(str(root))
+    return {
+        "ok": report["ok"],
+        "version": __version__,
+        "bin": report.get("bin"),
+        "adapters": {k: v for k, v in report.items() if k in ("skills", "files", "pointers")},
+        "notes": report.get("notes", []),
+        "bug_count": len(idx.get("bugs", [])),
+        "detector_count": len(store.list_detectors(str(root))),
+    }
 
 
 # trace:exempt reason=thin-cli-dispatch
@@ -393,8 +457,8 @@ def cmd_mcp(a):
     _ = a
     from .mcp_server import serve
 
+    # Returns None so main() prints nothing: stdout is JSON-RPC only.
     serve()
-    return {"ok": True}
 
 
 # trace:exempt reason=internal-detail
@@ -583,6 +647,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s.set_defaults(fn=cmd_promote)
 
+    s = sub.add_parser("baseline")
+    s.add_argument("--record", action="store_true", help="record current findings as tracked debt")
+    s.set_defaults(fn=cmd_baseline)
+
     s = sub.add_parser("suppress")
     s.add_argument("detector", nargs="?")
     s.add_argument("--fingerprint", default="")
@@ -604,7 +672,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="verify installed adapters match sources instead of installing",
     )
+    a.add_argument(
+        "--bin",
+        default=None,
+        help="invocation written into hooks/MCP/pointers (default: bugcorpus if on PATH else 'uv run bugcorpus')",
+    )
     a.set_defaults(fn=cmd_adapters)
+
+    s = sub.add_parser("update")
+    s.set_defaults(fn=cmd_update)
 
     s = sub.add_parser("export")
     s.add_argument("format", nargs="?", default="sarif")

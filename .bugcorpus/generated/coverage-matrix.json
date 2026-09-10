@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generated_at": "2026-09-10T09:21:53+00:00",
+  "generated_at": "2026-09-10T16:22:57+00:00",
   "engines": [
     "existing",
     "lexical",
@@ -63,7 +63,7 @@
           "id": "stale-state-after-await-v1",
           "version": 1,
           "engine": "custom",
-          "state": "warning",
+          "state": "blocking",
           "family": "stale-state-after-await",
           "catches": [
             "BC-000001"

@@ -64,16 +64,39 @@ uv run bugcorpus scan       # run promoted detectors (add --json for machines)
 
 <!-- trace:v1 id=doc.bugcorpus-readme-install work=WORK-BUG-ZJBDCZZ0 -->
 
-Prerequisites: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), git.
-No account, daemon, or network service is required — the core is local files
-plus deterministic executables.
+Bug Corpus is per-repo: the tool installs once, and each repository gets its
+own corpus. No account, daemon, or network service is required. One command
+installs everything the repo needs — corpus scaffold, skills, commands,
+hooks, and MCP entries — then you just open and run:
+
+```sh
+pipx install bugcorpus        # or: uv tool install bugcorpus
+cd your-repo
+bugcorpus init
+```
+
+From a source checkout the same flow is `uv run bugcorpus init`.
+`init` is idempotent: re-running it refreshes adapters without touching
+corpus records.
 
 ```sh
 git clone <your-fork-or-this-repo> && cd bugcorpus
 uv sync
-uv run bugcorpus adapters install   # skills, commands, hooks, MCP entries
 uv run bugcorpus adapters install --check   # verify sync (also runs in CI)
 ```
+
+Staying current: after upgrading the tool (`pipx upgrade bugcorpus`),
+refresh every enrolled repo in place:
+
+```sh
+cd your-repo
+bugcorpus update              # reinstall adapters, regenerate indexes
+```
+
+`update` reports the running version and what it refreshed; hook commands,
+MCP entries, and pointers are rewritten to the current invocation, so a repo
+installed with `uv run bugcorpus` keeps working after you switch it to an
+installed `bugcorpus` (or pin either form with `adapters install --bin ...`).
 
 Per-harness, everything works from the checkout; each line is a trust step
 owned by you, not by the installer:
@@ -176,7 +199,16 @@ Protected, PR-only `master` with strict required checks (`verify`, `scan-pr`,
 `analyze`). Solo-owner mode keeps direct pushes blocked without requiring a
 second reviewer account. Dependabot updates `uv` and Actions weekly; CodeQL
 analyzes Python on push, PR, and schedule. Secret scanning and push
-protection are enabled.
+protection are enabled. `ruff check`, `ruff format --check`, and `pyright`
+run in CI alongside the test suite.
+
+Only `blocking` detectors gate a build, and only on findings not already in
+`.bugcorpus/baseline.json` (record known debt once with
+`bugcorpus baseline --record`; fixture verification always ignores the
+baseline). `warning` and `shadow` findings are surfaced, never failures —
+if a scan reports findings yet exits 0, that is the design, and the scan
+summary names each detector's state. Every PR also gets inline reviewdog
+annotations from `bugcorpus export sarif` (advisory; the scan gate decides).
 
 ## Documentation
 
@@ -214,7 +246,8 @@ protection are enabled.
 `search`, `family list|show`, `synthesize [--family]`, `verify [--detector]`,
 `coverage` (bugs × engines plus family recall rollups, from live verification),
 `scan [--all|--changed|--diff|--profile]`, `detector list|show|run`,
-`promote --to`, `suppress`, `doctor`, `adapters install [--only,--check]`,
+`promote --to`, `suppress`, `baseline [--record]`, `doctor`,
+`adapters install [--only,--check,--bin]`, `update` (refresh repo to the running tool),
 `export sarif`, `mine-history`, `mcp`, `hooks post-tool-use`.
 
 ## Agent adapters

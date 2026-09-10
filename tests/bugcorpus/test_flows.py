@@ -37,7 +37,10 @@ def test_init_and_learn_roundtrip(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert cli_main(["init", "."]) == 0
     assert (tmp_path / ".bugcorpus" / "config.toml").exists()
-    assert (tmp_path / ".bugcorpus" / "schemas" / "finding.schema.json").exists()
+    # init installs everything: adapters land alongside the scaffold
+    assert (tmp_path / ".claude" / "skills" / "bug-corpus" / "SKILL.md").exists()
+    assert (tmp_path / ".codex" / "hooks.json").exists()
+    assert (tmp_path / ".omp" / "extensions" / "bug-corpus" / "bug-corpus.ts").exists()
     subprocess.run(["git", "init", "-q"], check=True, cwd=tmp_path)
     subprocess.run(["git", "config", "user.email", "t@t"], check=True, cwd=tmp_path)
     subprocess.run(["git", "config", "user.name", "t"], check=True, cwd=tmp_path)
@@ -112,6 +115,22 @@ def test_baseline_separates_new_from_known(tmp_corpus):
     (tmp_corpus / ".bugcorpus" / "baseline.json").write_text(json.dumps({"fingerprints": fps}))
     again = run_scan(str(tmp_corpus), profile="pr")
     assert again["findings"] and again["new_findings"] == []
+
+
+def test_baseline_command_lists_and_records(tmp_corpus, capsys):
+    listed = cli_main(["baseline"])
+    assert listed == 0
+    out = capsys.readouterr().out
+    assert "fingerprints" in out or "findings" in out
+    assert cli_main(["baseline", "--record"]) == 0
+    import json as _json
+
+    recorded = _json.loads((tmp_corpus / ".bugcorpus" / "baseline.json").read_text())
+    assert recorded["fingerprints"]
+    from bugcorpus.scanner import blocking_failed, run_scan
+
+    assert run_scan(str(tmp_corpus), profile="pr")["new_findings"] == []
+    assert blocking_failed(run_scan(str(tmp_corpus), profile="pr")) is False
 
 
 def test_invalid_corpus_record_surfaces(tmp_corpus):

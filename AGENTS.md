@@ -2752,7 +2752,7 @@ uvx ruff@latest format bugcorpus/ tests/
 ### Typecheck
 
 ```sh
-pyright bugcorpus/ tests/ .bugcorpus/detectors/
+uv run --with pyright -- pyright bugcorpus/ tests/ .bugcorpus/detectors/
 ```
 
 ### Build

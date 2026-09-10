@@ -178,6 +178,66 @@ def test_learn_creates_bugcase_skeleton(tmp_path, monkeypatch):
     assert bug.exists() and "sample bug" in bug.read_text()
 
 
+# trace:v1 id=test.bugcorpus-adapters.bin-update verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-adapters.install
+def test_payload_and_bin_resolution():
+    from bugcorpus.adapters import default_bin, payload_root, split_bin
+
+    root = payload_root()
+    assert (root / "skills" / "bug-corpus" / "SKILL.md").exists()
+    assert (root / "adapters" / "omp" / "bug-corpus.ts").exists()
+    assert (root / "adapters" / "codex" / "hooks.json").exists()
+    # dev checkout resolves the uv form even though .venv/bin is on PATH here
+    assert default_bin() == "uv run bugcorpus"
+    assert split_bin("bugcorpus") == ("bugcorpus", [])
+    assert split_bin("uv run bugcorpus") == ("uv", ["run", "bugcorpus"])
+
+
+def test_install_bin_override(tmp_path):
+    import json as _json
+    import tomllib
+
+    from bugcorpus.adapters import check
+
+    repo = tmp_path / "r"
+    repo.mkdir()
+    assert install(repo, bin="bugcorpus")["ok"]
+    settings = _json.loads((repo / ".claude" / "settings.json").read_text())
+    post = [h.get("command", "") for g in settings["hooks"]["PostToolUse"] for h in g["hooks"]]
+    assert "bugcorpus hooks post-tool-use" in post
+    assert not any(c.startswith("uv run") for c in post)
+    hooks = _json.loads((repo / ".codex" / "hooks.json").read_text())
+    flat = _json.dumps(hooks)
+    assert "bugcorpus hooks session-stop" in flat and "uv run" not in flat
+    cfg = tomllib.loads((repo / ".codex" / "config.toml").read_text())
+    srv = cfg["mcp_servers"]["bugcorpus"]
+    assert srv == {"command": "bugcorpus", "args": ["mcp"]}
+    assert check(repo, bin="bugcorpus")["ok"]
+    # default-bin check flags the drift honestly
+    assert check(repo)["ok"] is False
+
+
+def test_update_refreshes_repo(tmp_path, monkeypatch):
+    from bugcorpus.cli import main as cli_main
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".bugcorpus").mkdir()
+    assert cli_main(["update"]) == 0
+    assert (tmp_path / ".claude" / "skills" / "bug-corpus" / "SKILL.md").exists()
+    assert (tmp_path / ".bugcorpus" / "generated" / "corpus-index.json").exists()
+    from bugcorpus import __version__
+    from bugcorpus.cli import cmd_update
+
+    class _A:
+        pass
+
+    res = cmd_update(_A())
+    assert res["ok"] and res["version"] == __version__ and res["bin"] == "uv run bugcorpus"
+    import tomllib
+
+    meta = tomllib.loads((REPO / "pyproject.toml").read_text())
+    assert meta["project"]["version"] == __version__  # single source of truth
+
+
 def test_suppression_hides_matching_finding():
     from bugcorpus.scanner import suppressed_dict
 

@@ -14,7 +14,7 @@
     {
       "id": "stale-state-after-await-v1",
       "engine": "custom",
-      "state": "warning",
+      "state": "blocking",
       "family": "stale-state-after-await",
       "catches": [
         "BC-000001"

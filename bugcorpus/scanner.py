@@ -232,7 +232,13 @@ def run_scan(
             continue
         counts[res.status] = counts.get(res.status, 0) + 1
         results.append(
-            {"detector": did, "status": res.status, "detail": res.detail, "findings": findings}
+            {
+                "detector": did,
+                "state": manifest.get("state", ""),
+                "status": res.status,
+                "detail": res.detail,
+                "findings": findings,
+            }
         )
     # suppressions
     rules = store.load_suppressions(str(repo))

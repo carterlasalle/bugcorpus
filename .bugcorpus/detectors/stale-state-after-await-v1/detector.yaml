@@ -5,7 +5,7 @@ engine: custom
 entrypoint: detect.py
 languages: [python]
 cost: cheap
-state: warning
+state: blocking
 catches: [BC-000001]
 requires_full_scan: false
 severity: high
