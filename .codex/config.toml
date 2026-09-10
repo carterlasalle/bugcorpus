@@ -1,0 +1,8 @@
+# Bug Corpus for Codex. Trusted-project surface; approve on first run.
+
+# trace:v1 id=config.codex-bugcorpus-mcp work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+# Bug Corpus MCP server. Project config is trusted-only; approve on first run.
+# No secrets here: stdio transport, no auth, no network.
+[mcp_servers.bugcorpus]
+command = "uv"
+args = ["run", "bugcorpus", "mcp"]

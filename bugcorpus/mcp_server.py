@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Any
 
 TOOLS = [
     "bugcorpus_status",
@@ -16,7 +17,7 @@ TOOLS = [
 
 
 # trace:v1 id=impl.bugcorpus-mcp.dispatch work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
-def dispatch(name: str, args: dict):
+def dispatch(name: str, args: dict) -> Any:
     from . import store
     from .scanner import run_scan
     from .searcher import related, search

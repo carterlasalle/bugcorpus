@@ -5,6 +5,14 @@
       "args": [
         "mcp"
       ]
+    },
+    "bugcorpus": {
+      "command": "uv",
+      "args": [
+        "run",
+        "bugcorpus",
+        "mcp"
+      ]
     }
   }
 }

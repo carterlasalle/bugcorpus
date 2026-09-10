@@ -59,6 +59,8 @@ paths = [
   "uv.lock",
   "pyrightconfig.json",
   "CODEX.md",
+  "adapters/omp/package.json",
+  "adapters/codex/hooks.json",
 ]
 extensions = [
 

@@ -1,0 +1,12 @@
+{
+  "name": "bug-corpus",
+  "version": "0.1.0",
+  "description": "Bug Corpus thin OMP adapter: /bug-corpus, /bug-learn, /bug-scan commands plus a cheap post-edit scan hook over the deterministic `bugcorpus` CLI core.",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./bug-corpus.ts"]
+  },
+  "omp": {
+    "extensions": ["./bug-corpus.ts"]
+  }
+}

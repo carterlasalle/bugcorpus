@@ -328,6 +328,7 @@ def cmd_suppress(a):
     if a.expires:
         entry["expires_at"] = a.expires
     p = store.cdir() / "suppressions" / f"{a.detector}.yaml"
+    p.parent.mkdir(parents=True, exist_ok=True)
     data = _yaml.safe_load(p.read_text()) if p.exists() else {}
     items = data.get("suppressions", []) if isinstance(data, dict) else []
     items.append(entry)
@@ -345,8 +346,10 @@ def cmd_doctor(a):
 
 # trace:exempt reason=thin-cli-dispatch
 def cmd_adapters(a):
-    from .adapters import install
+    from .adapters import check, install
 
+    if a.check:
+        return check(store.root(), harnesses=a.only)
     return install(store.root(), harnesses=a.only)
 
 
@@ -375,6 +378,65 @@ def cmd_mcp(a):
 
     serve()
     return {"ok": True}
+
+
+# trace:exempt reason=internal-detail
+def hook_file_from_event(obj) -> str:
+    """Liberal recursive search for a *.py path in hook JSON (Claude/Codex shapes differ)."""
+    stack = [obj]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            stack.extend(cur.values())
+        elif isinstance(cur, list):
+            stack.extend(cur)
+        elif isinstance(cur, str) and cur.endswith(".py") and len(cur) < 512:
+            return cur
+    return ""
+
+
+# trace:v1 id=impl.bugcorpus-cli.hooks work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-8HPVNRVG
+def cmd_hooks(a):
+    """Cheap post-edit hook: fast-profile scan of the touched file. Always exits 0."""
+    _ = a
+    import json as _json
+
+    from .engines import load_manifest
+    from .scanner import run_scan
+
+    try:
+        raw = sys.stdin.read()
+        event = _json.loads(raw) if raw.strip() else {}
+        path = hook_file_from_event(event)
+        if not path.endswith(".py"):
+            return  # silent: nothing relevant to scan
+        res = run_scan(profile="fast", files=[path])
+        states = {}
+        for d in res["detectors"]:
+            try:
+                states[d["detector"]] = load_manifest(store.detector_dir(None, d["detector"])).get(
+                    "state", ""
+                )
+            except OSError:
+                states[d["detector"]] = ""
+        lines = []
+        for d in res["detectors"]:
+            if d["status"] == "detector-error":
+                lines.append(
+                    f"bugcorpus hook: detector {d['detector']} errored; "
+                    f"run `uv run bugcorpus verify --detector {d['detector']}`"
+                )
+        for f in res["findings"]:
+            if states.get(f["detector_id"]) in ("warning", "blocking"):
+                lines.append(
+                    f"bugcorpus hook: {f['detector_id']} {f['path']}:"
+                    f"{f['start_line']} {f['message'][:160]}"
+                )
+        if lines:
+            print("\n".join(lines))
+    except (OSError, ValueError):
+        pass  # hooks are advisory; CI verify/scan fail loudly instead
+    return
 
 
 # trace:exempt reason=internal-detail
@@ -472,6 +534,11 @@ def build_parser() -> argparse.ArgumentParser:
     ad = s.add_subparsers(dest="acmd", required=True)
     a = ad.add_parser("install")
     a.add_argument("--only", action="append", default=None)
+    a.add_argument(
+        "--check",
+        action="store_true",
+        help="verify installed adapters match sources instead of installing",
+    )
     a.set_defaults(fn=cmd_adapters)
 
     s = sub.add_parser("export")
@@ -483,9 +550,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--since", default=None)
     s.add_argument("--limit", type=int, default=20)
     s.set_defaults(fn=cmd_mine)
-
     s = sub.add_parser("mcp")
     s.set_defaults(fn=cmd_mcp)
+
+    s = sub.add_parser("hooks")
+    hs = s.add_subparsers(dest="hcmd", required=True)
+    h = hs.add_parser("post-tool-use")
+    h.set_defaults(fn=cmd_hooks)
     return p
 
 

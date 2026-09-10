@@ -1,3 +1,8 @@
+---
+name: bug-corpus
+description: Turn a confirmed bug into a permanent static detector. Use when a bug is found or fixed, a regression or root cause is discussed, similar bugs must be found elsewhere, a bug class must be prevented, or a Semgrep/CodeQL/Pysa/ast-grep rule is requested. Runs on `uv run bugcorpus`.
+---
+
 # bug-corpus
 <!-- trace:v1 id=doc.bugcorpus-skill work=WORK-BUG-ZJBDCZZ0 -->
 
