@@ -7,6 +7,7 @@
 [![CI](https://github.com/carterlasalle/bugcorpus/actions/workflows/bugcorpus.yml/badge.svg)](https://github.com/carterlasalle/bugcorpus/actions/workflows/bugcorpus.yml)
 ![Python](https://img.shields.io/badge/Python-%3E%3D3.11-3776AB?logo=python&logoColor=white)
 ![uv](https://img.shields.io/badge/uv-managed-000000?logo=astral&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [Quick start](#quick-start) · [Agent workflow](#agent-workflow) · [Architecture](#architecture) · [Coverage matrix](#coverage-matrix) · [Agent adapters](#agent-adapters) · [Decisions](docs/adr/) · [Contributing](#contributing)
 
