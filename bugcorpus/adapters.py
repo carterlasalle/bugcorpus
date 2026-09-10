@@ -28,6 +28,10 @@ CLAUDE_HOOK_ENTRY = {
     "matcher": "Edit|Write",
     "hooks": [{"type": "command", "command": HOOK_COMMAND}],
 }
+CLAUDE_STOP_ENTRY = {
+    "matcher": "",
+    "hooks": [{"type": "command", "command": "uv run bugcorpus hooks session-stop"}],
+}
 MCP_SERVER_ENTRY = {"command": "uv", "args": ["run", "bugcorpus", "mcp"]}
 TRUST_NOTES = {
     "claude": ".mcp.json needs one-time approval in Claude Code; hooks run on trust of the checkout.",
@@ -116,8 +120,14 @@ def install(repo: str | Path, harnesses: list[str] | None = None) -> dict:
         for cmd in sorted((src / "claude" / "commands").glob("*.md")):
             _copy_verbatim(cmd, repo / ".claude" / "commands" / cmd.name, report["files"])
         cur = _read_hooks(repo / ".claude" / "settings.json")
-        if not _has_hook_command(cur, HOOK_COMMAND):
+        merged = False
+        if not _has_hook_command(cur, "PostToolUse", HOOK_COMMAND):
             cur.setdefault("hooks", {}).setdefault("PostToolUse", []).append(CLAUDE_HOOK_ENTRY)
+            merged = True
+        if not _has_hook_command(cur, "Stop", "uv run bugcorpus hooks session-stop"):
+            cur.setdefault("hooks", {}).setdefault("Stop", []).append(CLAUDE_STOP_ENTRY)
+            merged = True
+        if merged:
             _write_json(repo / ".claude" / "settings.json", cur)
             report["files"].append(f"{rel(repo / '.claude' / 'settings.json')} (hook merged)")
         else:
@@ -175,9 +185,9 @@ def _read_hooks(path: Path) -> dict:
 
 
 # trace:exempt reason=internal-detail
-def _has_hook_command(settings: dict, command: str) -> bool:
+def _has_hook_command(settings: dict, event: str, command: str) -> bool:
     try:
-        groups = settings.get("hooks", {}).get("PostToolUse", [])
+        groups = settings.get("hooks", {}).get(event, [])
         return any(h.get("command") == command for g in groups for h in g.get("hooks", []))
     except AttributeError:
         return False
@@ -222,8 +232,11 @@ def check(repo: str | Path, harnesses: list[str] | None = None) -> dict:
         _check_tree(canon, repo / ".claude" / "skills" / "bug-corpus", problems)
         for cmd in sorted((repo / "adapters" / "claude" / "commands").glob("*.md")):
             _check_file(cmd, repo / ".claude" / "commands" / cmd.name, problems)
-        if not _has_hook_command(_read_hooks(repo / ".claude" / "settings.json"), HOOK_COMMAND):
+        settings = _read_hooks(repo / ".claude" / "settings.json")
+        if not _has_hook_command(settings, "PostToolUse", HOOK_COMMAND):
             problems.append(".claude/settings.json: missing bugcorpus PostToolUse hook")
+        if not _has_hook_command(settings, "Stop", "uv run bugcorpus hooks session-stop"):
+            problems.append(".claude/settings.json: missing bugcorpus Stop hook")
         try:
             mcp = json.loads((repo / ".mcp.json").read_text())
             if mcp.get("mcpServers", {}).get("bugcorpus") != MCP_SERVER_ENTRY:

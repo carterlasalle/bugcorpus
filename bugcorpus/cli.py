@@ -395,10 +395,55 @@ def hook_file_from_event(obj) -> str:
     return ""
 
 
+# trace:exempt reason=internal-detail
+def stop_signals(transcript: str) -> tuple[int, bool]:
+    """Count bug-fix signals vs learned markers in a JSONL transcript tail."""
+    import re as _re
+
+    fix = _re.compile(r"\b(fix|fixed|fixing|bug|regression|root cause|reproducer)\b")
+    learned = _re.compile(r"bugcorpus learn|/bug-learn|BC-\d|bug-corpus skill")
+    hits, done = 0, False
+    for ln in transcript.splitlines()[-200:]:
+        low = ln.lower()
+        if learned.search(low):
+            done = True
+        hits += len(set(fix.findall(low)))
+    return min(hits, 9), done
+
+
+# trace:v1 id=impl.bugcorpus-cli.session-stop work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_hooks_stop() -> None:
+    """Advisory stop reminder when a session fixed a bug without learning it."""
+    import json as _json
+
+    try:
+        raw = sys.stdin.read()
+        event = _json.loads(raw) if raw.strip() else {}
+        tpath = event.get("transcript_path") or event.get("transcript") or ""
+        if not tpath:
+            return  # no session evidence available; stay silent, never guess
+        try:
+            with open(tpath, encoding="utf-8", errors="replace") as f:
+                text = f.read()[-500_000:]
+        except OSError:
+            return
+        hits, learned = stop_signals(text)
+        if hits >= 2 and not learned:
+            print(
+                "Bug Corpus: this session looks like it fixed a bug. If it is a "
+                "genuine defect with a violated invariant (not a typo/format), "
+                "run /bug-learn before finishing so the bug class gains a detector."
+            )
+    except (OSError, ValueError):
+        pass
+    return
+
+
 # trace:v1 id=impl.bugcorpus-cli.hooks work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-8HPVNRVG
 def cmd_hooks(a):
     """Cheap post-edit hook: fast-profile scan of the touched file. Always exits 0."""
-    _ = a
+    if a.hcmd == "session-stop":
+        return cmd_hooks_stop()
     import json as _json
 
     from .engines import load_manifest
@@ -556,6 +601,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("hooks")
     hs = s.add_subparsers(dest="hcmd", required=True)
     h = hs.add_parser("post-tool-use")
+    h.set_defaults(fn=cmd_hooks)
+    h = hs.add_parser("session-stop")
     h.set_defaults(fn=cmd_hooks)
     return p
 

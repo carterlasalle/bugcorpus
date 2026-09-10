@@ -231,3 +231,31 @@ def test_omp_extension_bun_suite():
         check=False,
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# trace:v1 id=test.bugcorpus-cli.session-stop verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-cli.session-stop
+def test_hooks_session_stop(tmp_path, monkeypatch, capsys):
+    import io as _io
+    import json as _json
+
+    from bugcorpus.cli import main as cli_main
+
+    def run_stop(event: dict) -> str:
+        monkeypatch.setattr("sys.stdin", _io.StringIO(_json.dumps(event)))
+        assert cli_main(["hooks", "session-stop"]) in (0, None)
+        return capsys.readouterr().out
+
+    assert run_stop({}) == ""  # no evidence: silent
+    assert run_stop({"transcript_path": str(tmp_path / "nope.jsonl")}) == ""
+    tr = tmp_path / "fix.jsonl"
+    tr.write_text(
+        '{"type":"user","text":"fix this bug, it is a regression"}\n'
+        '{"type":"assistant","text":"root cause found, fixed, regression test added"}\n'
+    )
+    assert "/bug-learn" in run_stop({"transcript_path": str(tr)})
+    tr2 = tmp_path / "learned.jsonl"
+    tr2.write_text(
+        '{"type":"assistant","text":"fixed the bug, now running bugcorpus learn"}\n'
+        '{"type":"assistant","text":"recorded as BC-0007"}\n'
+    )
+    assert run_stop({"transcript_path": str(tr2)}) == ""  # already learned: silent

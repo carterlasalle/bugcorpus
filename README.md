@@ -18,6 +18,39 @@ uv run bugcorpus verify     # validate corpus + detector fixtures
 uv run bugcorpus scan       # run promoted detectors (add --json for machines)
 ```
 
+## Install
+<!-- trace:v1 id=doc.bugcorpus-readme-install work=WORK-BUG-ZJBDCZZ0 -->
+
+Prerequisites: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), git.
+No account, daemon, or network service is required — the core is local files
+plus deterministic executables.
+
+```sh
+git clone <your-fork-or-this-repo> && cd bugcorpus
+uv sync
+uv run bugcorpus adapters install   # skills, commands, hooks, MCP entries
+uv run bugcorpus adapters install --check   # verify sync (also runs in CI)
+```
+
+Per-harness, everything works from the checkout; each line is a trust step
+owned by you, not by the installer:
+
+- **Claude Code**: skill + `/bug-corpus` `/bug-learn` `/bug-scan` commands
+  load automatically. Approve `.mcp.json` once when prompted. The
+  PostToolUse hook runs a silent fast scan after Python edits; the Stop
+  hook reminds you only if the session fixed a bug without learning it.
+- **Codex**: skill (explicit `$bug-corpus` or automatic) plus AGENTS.md
+  pointer load automatically. Trust project hooks once
+  (`/hooks` — see <https://learn.chatgpt.com/docs/hooks>); MCP entry in
+  `.codex/config.toml` needs approval on first run.
+- **OMP**: `.omp/extensions/bug-corpus` auto-loads: the same three slash
+  commands plus the cheap post-edit scan. Restart the session after install.
+
+Uninstall: `git clean` the installed paths (they are all listed by
+`adapters install --check` problems when drifted) or keep the core and
+delete the harness directories; `bugcorpus verify` and `scan` never need
+any adapter present.
+
 ## Real workflow
 <!-- trace:v1 id=doc.bugcorpus-readme-workflow work=WORK-BUG-ZJBDCZZ0 -->
 

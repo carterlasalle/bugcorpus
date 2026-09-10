@@ -91,6 +91,15 @@
             "command": "trace hook stop --format claude"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run bugcorpus hooks session-stop"
+          }
+        ]
       }
     ]
   }

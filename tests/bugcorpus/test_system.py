@@ -95,6 +95,9 @@ def test_adapters_install_idempotent(tmp_path):
         for g in settings["hooks"]["PostToolUse"]
         for h in g["hooks"]
     )
+    stop_cmds = [h.get("command", "") for g in settings["hooks"]["Stop"] for h in g["hooks"]]
+    assert "echo bye" in stop_cmds  # pre-existing Stop hook preserved
+    assert any("session-stop" in c for c in stop_cmds)
     assert (repo / ".omp" / "extensions" / "bug-corpus" / "bug-corpus.ts").exists()
     assert (repo / ".claude" / "commands" / "bug-learn.md").exists()
     assert (repo / ".codex" / "hooks.json").exists()
