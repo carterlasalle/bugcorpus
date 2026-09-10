@@ -177,13 +177,7 @@ def write_index(cwd: str | None = None) -> dict:
     corpus_index = {"bugs": bugs, "families": list_families(cwd)}
     (gen / "corpus-index.json").write_text(json.dumps(corpus_index, indent=2))
     (gen / "detector-index.json").write_text(json.dumps({"detectors": dets}, indent=2))
-    matrix = {}
-    for b in bugs:
-        row = {}
-        for d in dets:
-            row[d["id"]] = d.get("id") in (b.get("detectors") or []) or b.get("id") in (
-                d.get("catches") or []
-            )
-        matrix[b.get("id", "?")] = row
-    (gen / "coverage-matrix.json").write_text(json.dumps(matrix, indent=2))
+    # NOTE: coverage-matrix.json is owned by `bugcorpus coverage`, which fills
+    # it from live verification. write_index must not clobber the v2 schema
+    # with the legacy booleans-only shape.
     return corpus_index

@@ -28,7 +28,7 @@ def test_matrix_structure():
     assert det["known_recall"] == 1.0
     assert det["adv_recall"] == 1.0
     assert det["neg_fp_rate"] == 0.0
-    assert det["state"] == "warning"
+    assert det["state"] == "blocking"
     assert det["blocking_eligible"] is True
     lex = matrix["families"]["unsafe-dynamic-execution"]["detectors"][0]
     assert lex["adv_recall"] < 1.0

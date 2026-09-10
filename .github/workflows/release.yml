@@ -1,0 +1,20 @@
+# trace:v1 id=op.bugcorpus-release.name work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+name: release
+# trace:v1 id=op.bugcorpus-release.triggers work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+on:
+  push: {tags: ["v*"]}
+  workflow_dispatch:
+# trace:v1 id=op.bugcorpus-release work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions: {id-token: write, contents: write}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --frozen
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: softprops/action-gh-release@v2
+        with: {files: "dist/*", generate_release_notes: true}

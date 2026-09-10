@@ -55,6 +55,18 @@ def test_detector_run_and_export(capsys):
     assert "2.1.0" in out or "findings" in out
 
 
+def test_sarif_results_are_warning_level():
+    from bugcorpus.sarif import to_sarif
+    from bugcorpus.scanner import run_scan
+
+    sarif = to_sarif(run_scan(str(REPO), profile="fast"))
+    results = sarif["runs"][0]["results"]
+    assert results
+    # annotations only: the scan gate is the single failure authority
+    assert {r["level"] for r in results} == {"warning"}
+    assert all(r["locations"][0]["physicalLocation"]["region"]["startLine"] >= 1 for r in results)
+
+
 def test_scan_profiles_and_detector_filter():
     from bugcorpus.scanner import run_scan
 
@@ -102,15 +114,34 @@ def test_mcp_serve_protocol(monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.stdin",
         _io.StringIO(
-            '{"id": 1, "method": "tools/list"}\n'
-            '{"id": 2, "method": "tools/call", '
+            '{"jsonrpc": "2.0", "id": 1, "method": "initialize", '
+            '"params": {"protocolVersion": "2024-11-05"}}\n'
+            '{"jsonrpc": "2.0", "method": "notifications/initialized"}\n'
+            '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}\n'
+            '{"jsonrpc": "2.0", "id": 3, "method": "tools/call", '
             '"params": {"name": "bugcorpus_search", "arguments": {"query": "eval"}}}\n'
+            '{"jsonrpc": "2.0", "id": 4, "method": "tools/call", '
+            '"params": {"name": "nope", "arguments": {}}}\n'
+            '{"jsonrpc": "2.0", "id": 5, "method": "ping"}\n'
+            "not json at all\n"
         ),
     )
     serve()
-    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert lines[0]["id"] == 1 and any(t["name"] == "bugcorpus_scan" for t in lines[0]["tools"])
-    assert any(h["id"] == "BC-000002" for h in lines[1]["result"])
+    out = capsys.readouterr().out.splitlines()
+    # notification + garbage line produce no response: 5 requests, 5 replies
+    assert len(out) == 5
+    lines = [json.loads(line) for line in out]
+    assert all(line["jsonrpc"] == "2.0" for line in lines)
+    init, tools, search, unknown, pong = lines
+    assert init["result"]["capabilities"] == {"tools": {}}
+    assert init["result"]["serverInfo"]["name"] == "bugcorpus"
+    names = [t["name"] for t in tools["result"]["tools"]]
+    assert "bugcorpus_scan" in names
+    assert all(t["inputSchema"]["type"] == "object" for t in tools["result"]["tools"])
+    hits = json.loads(search["result"]["content"][0]["text"])
+    assert any(h["id"] == "BC-000002" for h in hits)
+    assert unknown["error"]["code"] == -32602
+    assert pong["result"] == {}
 
 
 def test_verify_single_case_and_detector():

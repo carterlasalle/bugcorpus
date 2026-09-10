@@ -15,6 +15,9 @@ def to_sarif(scan: dict) -> dict:
             results.append(
                 {
                     "ruleId": did,
+                    # Annotations only: the scan gate (blocking state) is the
+                    # single failure authority, so nothing here is error-level.
+                    "level": "warning",
                     "message": {"text": f.get("message", "")},
                     "locations": [
                         {
