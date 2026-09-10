@@ -13,7 +13,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - uses: oven-sh/setup-bun@v2
       - run: uv sync --group dev
@@ -23,7 +23,7 @@ jobs:
   scan-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: {fetch-depth: 0}
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
@@ -32,7 +32,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: uv run bugcorpus scan --profile full
