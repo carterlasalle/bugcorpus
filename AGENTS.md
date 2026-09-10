@@ -2969,6 +2969,7 @@ Weak:
 - Trace: `trace ignore` kept only one of two `--file` values passed in one call; invoke once per path.
 - BugCorpus: detector fixture suites merge lineage (`catches` BugCase fixtures) so strengthening a detector re-runs all historical fixtures; verify enforces it.
 - BugCorpus: `verify` ignores baselines by design; `scan` honors them. Never invert this.
+- BugCorpus: something rewrote `.claude/settings.json` wholesale twice, dropping our hook entries (coincided with TraceLayer self-update activity, not proven). `adapters install --check` catches it; re-run `adapters install` to restore. Never hand-repair generated adapter files.
 
 ---
 
