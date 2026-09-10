@@ -10,6 +10,15 @@
             "command": "trace hook session-start --format claude"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run bugcorpus hooks session-start"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

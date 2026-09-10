@@ -102,8 +102,9 @@ Per-harness, everything works from the checkout; each line is a trust step
 owned by you, not by the installer:
 
 - **Claude Code**: skill + `/bug-corpus` `/bug-learn` `/bug-scan` commands
-  load automatically. Approve `.mcp.json` once when prompted. The
-  PostToolUse hook runs a silent fast scan after Python edits; the Stop
+  load automatically. Approve `.mcp.json` once when prompted. A SessionStart
+  hook announces the verified load state (counts plus per-detector checks);
+  the PostToolUse hook runs a silent fast scan after Python edits; the Stop
   hook reminds you only if the session fixed a bug without learning it.
 - **Codex**: skill (explicit `$bug-corpus` or automatic) plus AGENTS.md
   pointer load automatically. Trust project hooks once
@@ -247,8 +248,7 @@ annotations from `bugcorpus export sarif` (advisory; the scan gate decides).
 `coverage` (bugs × engines plus family recall rollups, from live verification),
 `scan [--all|--changed|--diff|--profile]`, `detector list|show|run`,
 `promote --to`, `suppress`, `baseline [--record]`, `doctor`,
-`adapters install [--only,--check,--bin]`, `update` (refresh repo to the running tool),
-`export sarif`, `mine-history`, `mcp`, `hooks post-tool-use`.
+`export sarif`, `mine-history`, `mcp`, `hooks post-tool-use|session-stop|session-start`.
 
 ## Agent adapters
 
@@ -266,8 +266,10 @@ merges configs without clobbering. Everything works from a bare checkout:
 
 Post-edit hooks in every harness call `uv run bugcorpus hooks post-tool-use`:
 fast-profile scan of the touched file, silent unless a warning/blocking
-detector fires, always exit 0 (advisory — CI enforces). Details and
-alternatives in `docs/adr/001-bare-checkout-adapters.md`.
+detector fires, always exit 0 (advisory — CI enforces). Session start runs
+`uv run bugcorpus hooks session-start`, which announces the verified load
+state (or stays silent outside enrolled repos). Details and alternatives in
+`docs/adr/001-bare-checkout-adapters.md`.
 
 ## Contributing
 

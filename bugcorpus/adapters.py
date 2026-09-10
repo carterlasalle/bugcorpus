@@ -86,6 +86,11 @@ def hook_stop_command(bin: str) -> str:
 
 
 # trace:exempt reason=internal-detail
+def hook_start_command(bin: str) -> str:
+    return f"{bin} hooks session-start"
+
+
+# trace:exempt reason=internal-detail
 def mcp_server_entry(bin: str) -> dict:
     cmd, rest = split_bin(bin)
     return {"command": cmd, "args": [*rest, "mcp"]}
@@ -201,6 +206,7 @@ def install(repo: str | Path, harnesses: list[str] | None = None, bin: str | Non
         return str(p.relative_to(repo))
 
     post_cmd, stop_cmd = hook_post_command(bin), hook_stop_command(bin)
+    start_cmd = hook_start_command(bin)
     if "claude" in targets:
         _copy_tree(skill_src, repo / ".claude" / "skills" / "bug-corpus", report["skills"])
         for cmd in sorted((src / "claude" / "commands").glob("*.md")):
@@ -211,10 +217,14 @@ def install(repo: str | Path, harnesses: list[str] | None = None, bin: str | Non
             cur.setdefault("hooks", {}).setdefault("PostToolUse", []).append(
                 {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": post_cmd}]}
             )
-            merged = True
         if not _has_hook_command(cur, "Stop", stop_cmd):
             cur.setdefault("hooks", {}).setdefault("Stop", []).append(
                 {"matcher": "", "hooks": [{"type": "command", "command": stop_cmd}]}
+            )
+            merged = True
+        if not _has_hook_command(cur, "SessionStart", start_cmd):
+            cur.setdefault("hooks", {}).setdefault("SessionStart", []).append(
+                {"matcher": "", "hooks": [{"type": "command", "command": start_cmd}]}
             )
             merged = True
         if merged:
@@ -327,6 +337,7 @@ def check(repo: str | Path, harnesses: list[str] | None = None, bin: str | None 
     canon = payload / CANON.parent
     src = payload / "adapters"
     post_cmd, stop_cmd = hook_post_command(bin), hook_stop_command(bin)
+    start_cmd = hook_start_command(bin)
     exp_mcp = mcp_server_entry(bin)
     exp_cmd, exp_rest = split_bin(bin)
     if "claude" in targets:
@@ -338,6 +349,8 @@ def check(repo: str | Path, harnesses: list[str] | None = None, bin: str | None 
             problems.append(".claude/settings.json: missing bugcorpus PostToolUse hook")
         if not _has_hook_command(settings, "Stop", stop_cmd):
             problems.append(".claude/settings.json: missing bugcorpus Stop hook")
+        if not _has_hook_command(settings, "SessionStart", start_cmd):
+            problems.append(".claude/settings.json: missing bugcorpus SessionStart hook")
         try:
             mcp = json.loads((repo / ".mcp.json").read_text())
             if mcp.get("mcpServers", {}).get("bugcorpus") != exp_mcp:
@@ -346,7 +359,7 @@ def check(repo: str | Path, harnesses: list[str] | None = None, bin: str | None 
             problems.append(".mcp.json: unreadable")
     if "codex" in targets:
         _check_tree(canon, repo / ".agents" / "skills" / "bug-corpus", problems)
-        _check_hooks_json(repo / ".codex" / "hooks.json", post_cmd, stop_cmd, problems)
+        _check_hooks_json(repo / ".codex" / "hooks.json", post_cmd, stop_cmd, problems, start_cmd)
         cfg = repo / ".codex" / "config.toml"
         try:
             data = tomllib.loads(cfg.read_text())
@@ -386,7 +399,9 @@ def _check_tree(src: Path, dest: Path, problems: list[str]) -> None:
 
 
 # trace:exempt reason=internal-detail
-def _check_hooks_json(path: Path, post_cmd: str, stop_cmd: str, problems: list[str]) -> None:
+def _check_hooks_json(
+    path: Path, post_cmd: str, stop_cmd: str, problems: list[str], start_cmd: str = ""
+) -> None:
     """hooks.json is a template (invocation substituted); verify structurally."""
     try:
         data = json.loads(path.read_text())
@@ -404,3 +419,5 @@ def _check_hooks_json(path: Path, post_cmd: str, stop_cmd: str, problems: list[s
         problems.append(f"{path}: missing bugcorpus PostToolUse hook")
     if not has("Stop", stop_cmd):
         problems.append(f"{path}: missing bugcorpus Stop hook")
+    if start_cmd and not has("SessionStart", start_cmd):
+        problems.append(f"{path}: missing bugcorpus SessionStart hook")
