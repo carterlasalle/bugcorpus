@@ -2,7 +2,12 @@
 <!-- trace:v1 id=doc.bugcorpus-changelog work=WORK-BUG-ZJBDCZZ0 -->
 
 
-## 0.1.0 — 2026-09-10
+## 0.1.1 — 2026-09-10
+<!-- trace:v1 id=doc.bugcorpus-release-0-1-1 work=WORK-BUG-ZJBDCZZ0 -->
+
+MIT license. PyPI distribution with bundled adapter payload, `bugcorpus
+update`, invocation-aware adapters, real MCP protocol, blocking gate with
+baseline, reviewdog annotations, coverage matrix artifact.
 <!-- trace:v1 id=doc.bugcorpus-release-0-1-0 work=WORK-BUG-ZJBDCZZ0 -->
 
 Initial implementation: corpus (BugCase/family/lineage), synthesis ladder
