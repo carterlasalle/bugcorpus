@@ -40,6 +40,11 @@ def print_human(data):
                     f"{f.get('path', '')}:{f.get('start_line', '')} {f.get('message', '')[:100]}"
                 )
         return
+    if isinstance(data, dict) and data.get("version") == 2 and "bugs" in data:
+        from .coverage import render_human
+
+        print(render_human(data))
+        return
     if isinstance(data, dict) and "ok" in data and "detectors" in data:
         print("verify: " + ("OK" if data["ok"] else "FAIL"))
         for r in data["detectors"]:
@@ -203,6 +208,18 @@ def cmd_verify(a):
     if a.id and a.id.startswith("BC-"):
         return verify_all(repo, only=a.id)
     return verify_all(repo)
+
+
+# trace:v1 id=impl.bugcorpus-cli.coverage work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-FESAJNS2
+def cmd_coverage(a):
+    from pathlib import Path as _P
+
+    from .coverage import write_matrix
+
+    _ = a
+    matrix, out = write_matrix(_P(store.root()))
+    matrix["_artifact"] = str(out)
+    return matrix
 
 
 # trace:v1 id=impl.bugcorpus-cli.scan work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-8HPVNRVG
@@ -533,6 +550,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("id", nargs="?")
     s.add_argument("--detector", default=None)
     s.set_defaults(fn=cmd_verify)
+
+    s = sub.add_parser("coverage")
+    s.set_defaults(fn=cmd_coverage)
 
     s = sub.add_parser("scan")
     s.add_argument("--profile", default="pr", choices=["fast", "pr", "full"])

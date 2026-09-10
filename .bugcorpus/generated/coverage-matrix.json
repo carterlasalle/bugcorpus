@@ -1,10 +1,116 @@
 {
-  "BC-000001": {
-    "forbidden-dynamic-execution-v1": false,
-    "stale-state-after-await-v1": true
+  "version": 2,
+  "generated_at": "2026-09-10T09:21:53+00:00",
+  "engines": [
+    "existing",
+    "lexical",
+    "ast-grep",
+    "semgrep",
+    "semgrep-taint",
+    "codeql",
+    "pysa",
+    "custom"
+  ],
+  "bugs": {
+    "BC-000001": {
+      "title": "Stale StateStore snapshot reused after await",
+      "family": "stale-state-after-await",
+      "detectors": [
+        "stale-state-after-await-v1"
+      ],
+      "engines": {
+        "existing": false,
+        "lexical": false,
+        "ast-grep": false,
+        "semgrep": false,
+        "semgrep-taint": false,
+        "codeql": false,
+        "pysa": false,
+        "custom": true
+      }
+    },
+    "BC-000002": {
+      "title": "Raw eval on request-supplied expression",
+      "family": "unsafe-dynamic-execution",
+      "detectors": [
+        "forbidden-dynamic-execution-v1"
+      ],
+      "engines": {
+        "existing": false,
+        "lexical": true,
+        "ast-grep": false,
+        "semgrep": false,
+        "semgrep-taint": false,
+        "codeql": false,
+        "pysa": false,
+        "custom": false
+      }
+    }
   },
-  "BC-000002": {
-    "forbidden-dynamic-execution-v1": true,
-    "stale-state-after-await-v1": false
+  "families": {
+    "stale-state-after-await": {
+      "title": "State snapshot reused across an async suspension point without refresh",
+      "members": {
+        "BC-000001": {
+          "caught": true,
+          "by": [
+            "stale-state-after-await-v1"
+          ]
+        }
+      },
+      "detectors": [
+        {
+          "id": "stale-state-after-await-v1",
+          "version": 1,
+          "engine": "custom",
+          "state": "warning",
+          "family": "stale-state-after-await",
+          "catches": [
+            "BC-000001"
+          ],
+          "ok": true,
+          "error": "",
+          "blocking_eligible": true,
+          "known": "1/1",
+          "known_recall": 1.0,
+          "adv": "1/1",
+          "adv_recall": 1.0,
+          "neg_fp": 0,
+          "neg_fp_rate": 0.0
+        }
+      ]
+    },
+    "unsafe-dynamic-execution": {
+      "title": "Unvalidated dynamic code execution",
+      "members": {
+        "BC-000002": {
+          "caught": true,
+          "by": [
+            "forbidden-dynamic-execution-v1"
+          ]
+        }
+      },
+      "detectors": [
+        {
+          "id": "forbidden-dynamic-execution-v1",
+          "version": 1,
+          "engine": "lexical",
+          "state": "warning",
+          "family": "unsafe-dynamic-execution",
+          "catches": [
+            "BC-000002"
+          ],
+          "ok": true,
+          "error": "",
+          "blocking_eligible": false,
+          "known": "1/1",
+          "known_recall": 1.0,
+          "adv": "0/1",
+          "adv_recall": 0.0,
+          "neg_fp": 0,
+          "neg_fp_rate": 0.0
+        }
+      ]
+    }
   }
 }
