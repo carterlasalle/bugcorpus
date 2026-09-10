@@ -19,7 +19,7 @@ jobs:
       - run: uv sync --group dev
       - run: uvx ruff@latest check bugcorpus/ tests/
       - run: uvx ruff@latest format --check bugcorpus/ tests/
-      - run: uvx pyright bugcorpus/ tests/ .bugcorpus/detectors/
+      - run: uv run --with pyright -- pyright bugcorpus/ tests/ .bugcorpus/detectors/
       - run: uv run pytest tests/ -q
       - run: uv run bugcorpus verify
       - run: uv run bugcorpus adapters install --check
@@ -41,8 +41,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - uses: reviewdog/action-setup@v1
-      - run: uv run bugcorpus export sarif --profile pr > findings.sarif
       - run: reviewdog -f=sarif -reporter=github-pr-review -level=warning -fail-level=error < findings.sarif
+        env: {REVIEWDOG_GITHUB_API_TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
   scan-full:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest

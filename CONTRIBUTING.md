@@ -45,7 +45,7 @@ generated — never edit them directly.
 
 ```sh
 uvx ruff@latest check bugcorpus/ tests/ && uvx ruff@latest format --check bugcorpus/ tests/
-pyright bugcorpus/ tests/ .bugcorpus/detectors/
+uv run --with pyright -- pyright bugcorpus/ tests/ .bugcorpus/detectors/
 trace verify --changed
 ```
 
