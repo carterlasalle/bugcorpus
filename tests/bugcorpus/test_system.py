@@ -40,8 +40,30 @@ def test_scan_finds_only_known_positives():
         assert "fixtures/" in f["path"]
 
 
+# trace:v1 id=test.bugcorpus-ci.blocking-gate verifies=REQ-BUG-WSZJ7M37 exercises=impl.bugcorpus-scanner.ci-gate
 def test_blocking_gate_ignores_warning_findings():
     assert blocking_failed(run_scan(str(REPO), profile="pr")) is False
+    blocking = {
+        "repo": str(REPO),
+        "new_findings": [
+            {"detector_id": "d", "fingerprint": "fp_1", "path": "a.py", "start_line": 1}
+        ],
+        "detectors": [
+            {
+                "detector": "d",
+                "status": "findings",
+                "findings": [
+                    {
+                        "detector_id": "d",
+                        "fingerprint": "fp_1",
+                        "path": "a.py",
+                        "start_line": 1,
+                    }
+                ],
+            }
+        ],
+    }
+    assert blocking_failed(blocking) is False  # d is not a blocking detector
 
 
 def test_search_and_related_find_sample_bug():
