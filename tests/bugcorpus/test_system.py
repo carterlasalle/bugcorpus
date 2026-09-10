@@ -189,7 +189,7 @@ def test_payload_and_bin_resolution():
     root = payload_root()
     assert (root / "skills" / "bug-corpus" / "SKILL.md").exists()
     assert (root / "adapters" / "omp" / "bug-corpus.ts").exists()
-    assert (root / "adapters" / "codex" / "hooks.json").exists()
+    assert (root / "adapters" / "claude" / "commands" / "bug-learn.md").exists()
     # dev checkout resolves the uv form even though .venv/bin is on PATH here
     assert default_bin() == "uv run bugcorpus"
     assert split_bin("bugcorpus") == ("bugcorpus", [])
@@ -256,3 +256,37 @@ def test_suppression_hides_matching_finding():
     assert (
         suppressed_dict(finding, [{"detector": "other", "reason": "t", "created_at": "x"}]) is False
     )
+
+
+# trace:v1 id=test.bugcorpus-adapters.no-clobber verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-adapters.install
+def test_install_preserves_foreign_hooks(tmp_path):
+    import json as _json
+
+    repo = tmp_path / "r"
+    repo.mkdir()
+    foreign = {
+        "hooks": {
+            "PostCompact": [
+                {"matcher": "manual|auto", "hooks": [{"type": "command", "command": "bd hook"}]}
+            ],
+            "PostToolUse": [
+                {"matcher": "Write", "hooks": [{"type": "command", "command": "other-tool"}]}
+            ],
+        }
+    }
+    (repo / ".codex").mkdir()
+    (repo / ".codex" / "hooks.json").write_text(_json.dumps(foreign))
+    assert install(repo, bin="bugcorpus")["ok"]
+    merged = _json.loads((repo / ".codex" / "hooks.json").read_text())
+    flat = _json.dumps(merged)
+    assert "bd hook" in flat and "other-tool" in flat  # foreign entries survive
+    assert "bugcorpus hooks post-tool-use" in flat
+    assert "bugcorpus hooks session-start" in flat
+    # second run is stable: no duplicates appended
+    assert install(repo, bin="bugcorpus")["ok"]
+    again = _json.loads((repo / ".codex" / "hooks.json").read_text())
+    assert _json.dumps(again, sort_keys=True) == _json.dumps(merged, sort_keys=True)
+    # unparseable files are left alone, never overwritten
+    (repo / ".codex" / "hooks.json").write_text("{oops")
+    assert install(repo, bin="bugcorpus")["ok"]
+    assert (repo / ".codex" / "hooks.json").read_text() == "{oops"
