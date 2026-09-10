@@ -3,7 +3,7 @@ name: bugcorpus
 # trace:v1 id=op.bugcorpus-ci.triggers work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
 on:
   pull_request:
-    paths: ["bugcorpus/**", ".bugcorpus/**", "tests/**", "skills/bug-corpus/**", "adapters/**", ".claude/**", ".codex/**", ".agents/**", ".omp/**", ".mcp.json", ".github/**"]
+    paths: ["bugcorpus/**", ".bugcorpus/**", "tests/**", "skills/bug-corpus/**", "adapters/**", ".claude/**", ".codex/**", ".agents/**", ".omp/**", ".mcp.json", ".github/**", "**.md", "docs/**"]
   push:
     branches: [main, master]
   schedule: [{cron: "0 6 * * 1"}]
