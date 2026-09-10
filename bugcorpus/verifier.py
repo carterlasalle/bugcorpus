@@ -40,6 +40,8 @@ def fixture_files(
                 else:
                     out["adv_positive"].append(p)
 
+    if ddir:
+        collect(ddir / "fixtures")
     if manifest and repo:
         for bid in manifest.get("catches", []):
             collect(repo / ".bugcorpus" / "corpus" / bid / "fixtures")

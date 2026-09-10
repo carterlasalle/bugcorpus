@@ -35,5 +35,71 @@
         ]
       }
     ]
-  }
+  },
+  "SessionStart": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "trace hook session-start --format codex",
+          "statusMessage": "TraceLayer: session health",
+          "additionalContextLimit": 1000
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "trace hook prompt-context --format codex",
+          "statusMessage": "TraceLayer: prompt context",
+          "additionalContextLimit": 1500
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "^Bash$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "trace hook pre-mutation --format codex",
+          "statusMessage": "TraceLayer: pre-mutation guard",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "^Bash$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "trace hook post-mutation --format codex",
+          "statusMessage": "TraceLayer: post-mutation guidance",
+          "additionalContextLimit": 1500,
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "trace hook stop --format codex",
+          "statusMessage": "TraceLayer: stop gate",
+          "timeout": 60
+        }
+      ]
+    }
+  ]
 }

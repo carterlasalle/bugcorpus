@@ -12,13 +12,14 @@
         ]
       },
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run bugcorpus hooks session-start"
+            "command": "uv run bugcorpus hooks session-start",
+            "timeout": 30
           }
-        ]
+        ],
+        "matcher": ""
       }
     ],
     "UserPromptSubmit": [
@@ -72,13 +73,14 @@
         ]
       },
       {
-        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run bugcorpus hooks post-tool-use"
+            "command": "uv run bugcorpus hooks post-tool-use",
+            "timeout": 60
           }
-        ]
+        ],
+        "matcher": "Edit|Write"
       }
     ],
     "PostToolBatch": [
@@ -102,13 +104,14 @@
         ]
       },
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run bugcorpus hooks session-stop"
+            "command": "uv run bugcorpus hooks session-stop",
+            "timeout": 30
           }
-        ]
+        ],
+        "matcher": ""
       }
     ]
   }
