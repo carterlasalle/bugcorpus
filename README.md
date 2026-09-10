@@ -287,6 +287,8 @@ Detectors are portable. The long-lived `community` branch collects
 shared detectors; contributions arrive as pull requests against it so
 every shared detector gets a security review before anyone installs it.
 Detectors are executable code — treat them like dependencies, not data.
+The branch is a blank orphan holding only shared detectors, so every
+contribution diff contains just the detector under review.
 
 ```sh
 # share one of yours (pushes your branch, opens a PR against community)

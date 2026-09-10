@@ -2,6 +2,15 @@
 <!-- trace:v1 id=doc.bugcorpus-changelog work=WORK-BUG-ZJBDCZZ0 -->
 
 
+## 0.2.0 — 2026-09-10
+<!-- trace:v1 id=doc.bugcorpus-release-0-2-0 work=WORK-BUG-ZJBDCZZ0 -->
+
+Community detector exchange (`community export|import|list|install|publish`)
+with PR-gated trust: imports land at shadow or draft, provenance records
+origin, and the blank `community` branch keeps shared detectors out of
+default checkouts until curated. Adapter install merges hooks instead of
+overwriting foreign entries; `node_modules` excluded from default scan scope.
+
 ## 0.1.1 — 2026-09-10
 <!-- trace:v1 id=doc.bugcorpus-release-0-1-1 work=WORK-BUG-ZJBDCZZ0 -->
 
