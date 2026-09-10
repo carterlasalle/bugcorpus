@@ -1,5 +1,6 @@
 """Store, search, scan, verify, sarif, adapters: observable contracts."""
 
+import shutil
 from pathlib import Path
 
 from bugcorpus import store
@@ -64,18 +65,72 @@ def test_next_id_and_index(tmp_path, monkeypatch):
 
 
 def test_adapters_install_idempotent(tmp_path):
+    import json as _json
+
+    from bugcorpus.adapters import check
+
     repo = tmp_path / "r"
     (repo / "skills" / "bug-corpus").mkdir(parents=True)
-    (repo / "skills" / "bug-corpus" / "SKILL.md").write_text("canon")
-
+    shutil.copy(
+        REPO / "skills" / "bug-corpus" / "SKILL.md", repo / "skills" / "bug-corpus" / "SKILL.md"
+    )
+    shutil.copytree(REPO / "adapters", repo / "adapters")
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "settings.json").write_text(
+        _json.dumps(
+            {
+                "hooks": {
+                    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "echo bye"}]}]
+                }
+            }
+        )
+    )
     (repo / "AGENTS.md").write_text("# Agents\n")
     first = install(repo)
     assert first["ok"]
-    agents_after_first = (repo / "AGENTS.md").read_text()
+    settings = _json.loads((repo / ".claude" / "settings.json").read_text())
+    assert "Stop" in settings["hooks"]  # pre-existing hooks preserved
+    assert any(
+        "bugcorpus" in h.get("command", "")
+        for g in settings["hooks"]["PostToolUse"]
+        for h in g["hooks"]
+    )
+    assert (repo / ".omp" / "extensions" / "bug-corpus" / "bug-corpus.ts").exists()
+    assert (repo / ".claude" / "commands" / "bug-learn.md").exists()
+    assert (repo / ".codex" / "hooks.json").exists()
+    tree_after_first = sorted(str(p) for p in repo.rglob("*") if p.is_file())
     second = install(repo)
     assert second["ok"]
-    assert (repo / "AGENTS.md").read_text() == agents_after_first
-    assert "use the repository's bug-corpus skill" in agents_after_first
+    assert sorted(str(p) for p in repo.rglob("*") if p.is_file()) == tree_after_first
+    assert all(
+        "unchanged" in s or "updated" in s or "created" in s or "merged" in s or "ok" in s
+        for s in second["skills"] + second["files"]
+    )
+    assert check(repo)["ok"]
+    # tampering is detected
+    (repo / ".claude" / "commands" / "bug-learn.md").write_text("tampered")
+    assert check(repo)["ok"] is False
+
+
+# trace:v1 id=test.bugcorpus-adapters.in-sync verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-adapters.check
+def test_installed_adapters_match_sources():
+    from bugcorpus.adapters import check as check_adapters
+
+    result = check_adapters(str(REPO))
+    assert result["ok"], result["problems"]
+
+
+# trace:exempt reason=thin-contract-assertion
+def test_skill_frontmatter_valid():
+    import re as _re
+
+    text = (REPO / "skills" / "bug-corpus" / "SKILL.md").read_text()
+    m = _re.match(r"---\n(.*?)\n---\n", text, _re.DOTALL)
+    assert m, "canonical skill needs agentskills.io frontmatter"
+    front = m.group(1)
+    assert "name: bug-corpus" in front
+    dm = _re.search(r"description: (.*)", front)
+    assert dm and 10 < len(dm.group(1)) <= 1024
 
 
 def test_detector_suite_merges_lineage_fixtures():

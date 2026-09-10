@@ -61,6 +61,15 @@
             "command": "trace hook post-mutation --format claude"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run bugcorpus hooks post-tool-use"
+          }
+        ]
       }
     ],
     "PostToolBatch": [

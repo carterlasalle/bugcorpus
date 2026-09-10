@@ -1,0 +1,55 @@
+bug: BC-000002
+family: unsafe-dynamic-execution
+related:
+- id: BC-000001
+  title: Stale StateStore snapshot reused after await
+  family: stale-state-after-await
+  score: 5
+recommended_engine: custom
+rationale: purpose-built searcher; document minimum semantic model
+evidence:
+  id: BC-000002
+  title: Raw eval on request-supplied expression
+  invariant: Code must never call eval/exec on a value that is not a static literal.
+  root_cause: eval() is called on a non-constant value without a safe evaluator
+  symptom: attacker-controlled string is executed as code
+  signature:
+    kind: unsafe-sink
+    source:
+      any_value: true
+    sink:
+      calls:
+      - eval
+      - exec
+    sanitizer:
+      calls:
+      - ast.literal_eval
+  symbols:
+  - eval
+  calls:
+  - eval
+  - ast.literal_eval
+  family: unsafe-dynamic-execution
+  fix.diff: "--- a/calc.py\n+++ b/calc.py (buggy)\n@@\n+import ast\n+\n def calculate(request):\n\
+    -    return ast.literal_eval(request[\"expr\"])\n+    return eval(request[\"expr\"\
+    ])\n"
+  fixtures:
+    positive:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000002/fixtures/positive/bad.py
+    negative:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000002/fixtures/negative/fixed.py
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000002/fixtures/negative/mentioned_not_called.py
+    adversarial:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000002/fixtures/adversarial/adv_negative_dispatch.py
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000002/fixtures/adversarial/adv_positive_alias.py
+checklist:
+- minimize reproducer
+- positive fixture
+- fixed negative fixture
+- neighboring negatives
+- synthesize detector
+- verify fixtures
+- adversarial variants
+- scan repo
+- evaluation report
+- recommend promotion (shadow first)

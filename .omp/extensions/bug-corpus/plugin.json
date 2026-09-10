@@ -1,5 +1,0 @@
-{
-  "name": "bug-corpus",
-  "commands": ["/bug-corpus", "/bug-learn", "/bug-scan"],
-  "entry": "uv run bugcorpus"
-}

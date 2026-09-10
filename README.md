@@ -77,5 +77,23 @@ Baseline mode hides old repo debt but never historical fixtures.
 `init`, `learn [--from-worktree|--before|--after]`, `show`, `related`,
 `search`, `family list|show`, `synthesize [--family]`, `verify [--detector]`,
 `scan [--all|--changed|--diff|--profile]`, `detector list|show|run`,
-`promote --to`, `suppress`, `doctor`, `adapters install`, `export sarif`,
-`mine-history`, `mcp`.
+`promote --to`, `suppress`, `doctor`, `adapters install [--only,--check]`,
+`export sarif`, `mine-history`, `mcp`, `hooks post-tool-use`.
+
+## Agent adapters
+<!-- trace:v1 id=doc.bugcorpus-readme-adapters work=WORK-BUG-ZJBDCZZ0 -->
+
+One canonical skill (`skills/bug-corpus/SKILL.md`, Agent Skills frontmatter);
+`uv run bugcorpus adapters install` copies it plus per-harness surfaces and
+merges configs without clobbering. Everything works from a bare checkout:
+
+| Harness | Shipped | Manual step |
+|---|---|---|
+| Claude Code | `.claude/skills/`, `.claude/commands/` (bug-corpus/learn/scan), settings hook merge, `.mcp.json` merge | approve MCP once |
+| Codex | `.agents/skills/`, AGENTS.md pointer, `.codex/hooks.json`, `.codex/config.toml` MCP merge | trust project hooks |
+| OMP | `.omp/skills/`, `.omp/extensions/bug-corpus/` (real extension: `/bug-corpus` `/bug-learn` `/bug-scan` + cheap post-edit hook) | restart session |
+
+Post-edit hooks in every harness call `uv run bugcorpus hooks post-tool-use`:
+fast-profile scan of the touched file, silent unless a warning/blocking
+detector fires, always exit 0 (advisory — CI enforces). Details and
+alternatives in `docs/adr/001-bare-checkout-adapters.md`.

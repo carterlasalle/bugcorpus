@@ -2874,19 +2874,26 @@ Branch:     >= 90%
 
 ### Cyclomatic complexity
 
-TBD.
+Warn at branch-count 15 per function, fail at 25 (ruff C901 equivalent).
 
 Receipt:
 
-TBD.
+2026-09-10, AST branch count over `bugcorpus/*.py`: highest-density files
+are engines.py (83 branches across 13 small methods) and scanner.py (67);
+no single function exceeds ~12 branches. Longest functions are declarative
+or linear pipelines: build_parser (115, flat argparse), run_scan (81),
+verify_detector (61), install (58). Accepted as-is; split on branch growth,
+not line growth.
 
 ### LOC per file
 
-TBD.
+Warn 400, fail 700 LOC per Python file. Tripwire, not target.
 
 Receipt:
 
-TBD.
+2026-09-10: total 2718 lines across 16 modules; largest cli.py (610,
+declarative dispatcher), engines.py (364), scanner.py (314). No action;
+reassess if any file crosses 700.
 
 ### ABC score
 

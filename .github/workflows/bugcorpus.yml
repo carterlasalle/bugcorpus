@@ -3,7 +3,7 @@ name: bugcorpus
 # trace:v1 id=op.bugcorpus-ci.triggers work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
 on:
   pull_request:
-    paths: ["bugcorpus/**", ".bugcorpus/**", "tests/bugcorpus/**", "skills/bug-corpus/**"]
+    paths: ["bugcorpus/**", ".bugcorpus/**", "tests/**", "skills/bug-corpus/**", "adapters/**", ".claude/**", ".codex/**", ".agents/**", ".omp/**", ".mcp.json"]
   push:
     branches: [main, master]
   schedule: [{cron: "0 6 * * 1"}]
@@ -15,9 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - uses: oven-sh/setup-bun@v2
       - run: uv sync --group dev
       - run: uv run pytest tests/ -q
       - run: uv run bugcorpus verify
+      - run: uv run bugcorpus adapters install --check
   scan-pr:
     runs-on: ubuntu-latest
     steps:

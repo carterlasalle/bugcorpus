@@ -179,16 +179,19 @@ def run_scan(
     diff: str | None = None,
     detectors: list[str] | None = None,
     include_unavailable: bool = True,
+    files: list[str] | None = None,  # explicit targets (hooks); overrides scope
 ) -> dict:
     repo = Path(repo_root or store.root()).resolve()
     cfg = config(str(repo))
     timeout = int(cfg.get("scan", {}).get("timeout_seconds", 120))
     all_files = collect_files(repo, cfg)
-    if scope == "changed" or diff:
+    if files is not None:
+        file_list = files
+    elif scope == "changed" or diff:
         changed, _ = changed_files(repo, diff)
-        files = changed or all_files
+        file_list = changed or all_files
     else:
-        files = all_files
+        file_list = all_files
     # drop fixture/suppression noise? No: scan everything configured.
     results: list[dict] = []
     counts = {"clean": 0, "findings": 0, "detector-error": 0, "unavailable": 0}
@@ -217,7 +220,7 @@ def run_scan(
             counts["detector-error"] += 1
             continue
         # requires_full_scan detectors ignore changed scoping
-        target = all_files if manifest.get("requires_full_scan") else files
+        target = all_files if manifest.get("requires_full_scan") else file_list
         try:
             res = engine.scan(repo, manifest, store.detector_dir(str(repo), did), target, timeout)
         except Exception as e:  # noqa: BLE001 -- crash isolation: a detector error must fail loudly, never read as clean
