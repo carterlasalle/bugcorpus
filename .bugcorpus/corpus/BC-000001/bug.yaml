@@ -1,0 +1,40 @@
+id: BC-000001
+title: Stale StateStore snapshot reused after await
+status: confirmed
+created_at: '2026-09-10T00:00:00+00:00'
+language: python
+subsystem: state-store
+severity: high
+confidence: high
+source: constructed-fixture
+source_reference: .bugcorpus/corpus/BC-000001/
+symptom: request handler returns stale object state after concurrent update
+user_impact: clients observe outdated data; writes based on stale reads can clobber newer state
+root_cause: snapshot obtained before an await is reused after another task may invalidate that snapshot
+violated_invariant: Snapshot objects returned by snapshot acquisition calls may not be dereferenced after a suspension point unless refreshed after the final await.
+required_preconditions:
+- snapshot object is invalidated by concurrent tasks
+- function suspends at an await between acquire and use
+triggering_operation: concurrent mutation of the snapshotted state during the await
+incorrect_behavior: use pre-await snapshot after await
+correct_behavior: reacquire the snapshot after the final await before use
+semantic_signature:
+  kind: use-after-suspension
+  acquire: {call_matches: snapshot}
+  invalidating_boundary: await expression
+  forbidden_use: attribute access or passing of the acquired object
+  allowed_if: object is reacquired after the final await
+relevant_symbols: [snapshot, get_snapshot]
+relevant_types: [Snapshot]
+relevant_calls: [get_snapshot, StateStore.snapshot]
+relevant_modules: [state_store]
+control_flow_properties: [suspension-point-invalidates-snapshot]
+data_flow_properties: [def-use-through-local-assignment]
+state_transition_properties: [snapshot-stale-after-await]
+ordering_properties: [acquire-before-await-before-use]
+known_positive_examples: [.bugcorpus/corpus/BC-000001/fixtures/positive/bad.py]
+known_negative_examples: [.bugcorpus/corpus/BC-000001/fixtures/negative/fixed.py]
+detector_status: warning
+detector_ids: [stale-state-after-await-v1]
+related_bug_cases: [BC-000002]
+family_id: stale-state-after-await

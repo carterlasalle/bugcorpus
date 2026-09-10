@@ -1,0 +1,13 @@
+id: unsafe-dynamic-execution
+title: Unvalidated dynamic code execution
+description: >-
+  Raw `eval`/`exec` on non-constant input executes arbitrary code.
+  Prefer `ast.literal_eval` or an explicit dispatch table.
+invariant: Code must never call eval/exec on a value that is not a static literal.
+semantic_signature:
+  kind: unsafe-sink
+  source: {any_value: true}
+  sink: {calls: [eval, exec]}
+  sanitizer: {calls: [ast.literal_eval]}
+members: [BC-000002]
+detectors: [forbidden-dynamic-execution-v1]

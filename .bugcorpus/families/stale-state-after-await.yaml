@@ -1,0 +1,17 @@
+id: stale-state-after-await
+title: State snapshot reused across an async suspension point without refresh
+description: >-
+  A snapshot/cached object obtained before an `await` is dereferenced after
+  the suspension point without being reacquired. Another task may invalidate
+  the snapshot while suspended, so the use observes stale state.
+invariant: >-
+  Snapshot objects returned by snapshot acquisition calls may not be
+  dereferenced after a suspension point unless refreshed after the final await.
+semantic_signature:
+  kind: use-after-suspension
+  acquire: {call_matches: snapshot}
+  invalidating_boundary: await expression
+  forbidden_use: attribute access or passing of the acquired object
+  allowed_if: object is reacquired after the final await
+members: [BC-000001]
+detectors: [stale-state-after-await-v1]

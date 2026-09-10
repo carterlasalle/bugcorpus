@@ -1,0 +1,66 @@
+# TraceLayer configuration (spec Section 49).
+schema_version = 1
+repo_id = "bugcorpus"
+cache_dir = ".trace/cache"
+
+[index]
+respect_gitignore = true
+incremental = true
+fts = true
+
+[index.languages]
+python = true
+typescript = true
+javascript = true
+go = true
+rust = true
+java = true
+cpp = false
+
+[discovery]
+include = ["**/*"]
+exclude = [
+  ".git/**",
+  ".trace/cache/**",
+  "node_modules/**",
+  ".venv/**",
+  "dist/**",
+  "build/**",
+  ".agents/**",
+  ".claude/**",
+  ".codex/**",
+  ".pi/**",
+  ".omp/**",
+  ".hermes/**",
+  ".cursor/**",
+  ".serena/**",
+  ".scc/**",
+  ".mcp.json",
+  "opencode.json"
+]
+generated = ["src/generated/**"]
+
+[markers]
+prefix = "trace:v1"
+unknown_keys = "error"
+
+[hooks]
+max_context_chars = 1500
+mutation_enforcement = "remind"
+prompt_search_limit = 5
+
+[evidence]
+require_revision = true
+preferred_coverage_proof = "suite"
+
+[external]
+resolve_by_default = false
+
+[identity]
+namespace = "BUG"
+max_artifact_id_length = 40
+max_code_id_length = 96
+max_filename_length = 60
+max_title_length = 72
+marker_soft_length = 160
+marker_hard_length = 240

@@ -1,0 +1,17 @@
+id: stale-state-after-await-v1
+version: 1
+family: stale-state-after-await
+engine: custom
+entrypoint: detect.py
+languages: [python]
+cost: cheap
+state: warning
+catches: [BC-000001]
+requires_full_scan: false
+severity: high
+confidence: medium
+description: Snapshot acquired before an await and used after without refresh.
+remediation: Reacquire the snapshot after the final await before using it.
+# Minimum semantic model: function-local def/use, await boundary detection,
+# variable rebinding. Explicitly NOT modeled (future v2): values propagated
+# through helper return values, cross-file flows, aliasing through containers.

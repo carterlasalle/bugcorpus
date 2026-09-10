@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "detector",
+  "type": "object",
+  "required": ["id", "engine", "state", "family"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9\\-_]{2,80}$"},
+    "version": {"type": "integer", "minimum": 1},
+    "engine": {"enum": ["existing", "lexical", "ast-grep", "semgrep", "semgrep-taint", "codeql", "pysa", "custom"]},
+    "state": {"enum": ["draft", "candidate", "shadow", "warning", "blocking", "retired"]},
+    "cost": {"enum": ["cheap", "medium", "expensive"]},
+    "family": {"type": "string"},
+    "catches": {"type": "array", "items": {"type": "string"}}
+  }
+}

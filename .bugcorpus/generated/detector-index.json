@@ -1,0 +1,26 @@
+{
+  "detectors": [
+    {
+      "id": "forbidden-dynamic-execution-v1",
+      "engine": "lexical",
+      "state": "warning",
+      "family": "unsafe-dynamic-execution",
+      "catches": [
+        "BC-000002"
+      ],
+      "cost": "cheap",
+      "version": 1
+    },
+    {
+      "id": "stale-state-after-await-v1",
+      "engine": "custom",
+      "state": "warning",
+      "family": "stale-state-after-await",
+      "catches": [
+        "BC-000001"
+      ],
+      "cost": "cheap",
+      "version": 1
+    }
+  ]
+}

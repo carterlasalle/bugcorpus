@@ -1,0 +1,10 @@
+--- a/handlers.py
++++ b/handlers.py (buggy)
+@@
+ async def handle(request):
+-    snapshot = get_snapshot()
+-    await fetch_remote(request)
+-    snapshot = get_snapshot()
++    snapshot = get_snapshot()
++    await fetch_remote(request)
+     return render(snapshot)

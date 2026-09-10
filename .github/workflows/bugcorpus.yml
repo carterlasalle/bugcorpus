@@ -1,0 +1,36 @@
+# trace:v1 id=op.bugcorpus-ci.name work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+name: bugcorpus
+# trace:v1 id=op.bugcorpus-ci.triggers work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+on:
+  pull_request:
+    paths: ["bugcorpus/**", ".bugcorpus/**", "tests/bugcorpus/**", "skills/bug-corpus/**"]
+  push:
+    branches: [main, master]
+  schedule: [{cron: "0 6 * * 1"}]
+  workflow_dispatch:
+# trace:v1 id=op.bugcorpus-ci work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-WSZJ7M37
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --group dev
+      - run: uv run pytest tests/ -q
+      - run: uv run bugcorpus verify
+  scan-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run bugcorpus scan --profile pr
+  scan-full:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run bugcorpus scan --profile full

@@ -1,0 +1,1 @@
+{"exclude": [".venv", ".git", ".trace", ".bugcorpus/corpus/**/fixtures", "node_modules"], "typeCheckingMode": "basic"}

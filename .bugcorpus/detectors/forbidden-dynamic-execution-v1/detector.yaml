@@ -1,0 +1,20 @@
+id: forbidden-dynamic-execution-v1
+version: 1
+family: unsafe-dynamic-execution
+engine: lexical
+languages: [python]
+cost: cheap
+state: warning
+catches: [BC-000002]
+requires_full_scan: false
+severity: critical
+confidence: high
+description: Raw eval/exec on non-constant input executes arbitrary code.
+remediation: Use ast.literal_eval or an explicit dispatch table.
+patterns:
+- regex: '(?<![\w.])eval\s*\('
+  message: "Forbidden dynamic execution: eval() must not be used on non-constant input."
+- regex: '(?<![\w.])exec\s*\('
+  message: "Forbidden dynamic execution: exec() must not be used on non-constant input."
+# Known limit (documented): aliased builtins (fn = eval; fn(x)) are missed by
+# lexical matching. A future ast-grep/semgrep version can cover aliasing.

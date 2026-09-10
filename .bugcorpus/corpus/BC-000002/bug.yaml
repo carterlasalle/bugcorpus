@@ -1,0 +1,38 @@
+id: BC-000002
+title: Raw eval on request-supplied expression
+status: confirmed
+created_at: '2026-09-10T00:00:00+00:00'
+language: python
+subsystem: expression-service
+severity: critical
+confidence: high
+source: constructed-fixture
+source_reference: .bugcorpus/corpus/BC-000002/
+symptom: attacker-controlled string is executed as code
+user_impact: arbitrary code execution from user input
+root_cause: eval() is called on a non-constant value without a safe evaluator
+violated_invariant: Code must never call eval/exec on a value that is not a static literal.
+required_preconditions:
+- input reaches eval
+triggering_operation: request supplies a malicious expression string
+incorrect_behavior: eval(user_input)
+correct_behavior: ast.literal_eval on a validated literal, or explicit dispatch
+semantic_signature:
+  kind: unsafe-sink
+  source: {any_value: true}
+  sink: {calls: [eval, exec]}
+  sanitizer: {calls: [ast.literal_eval]}
+relevant_symbols: [eval]
+relevant_types: []
+relevant_calls: [eval, ast.literal_eval]
+relevant_modules: [ast]
+control_flow_properties: []
+data_flow_properties: [unvalidated-value-to-sink]
+state_transition_properties: []
+ordering_properties: []
+known_positive_examples: [.bugcorpus/corpus/BC-000002/fixtures/positive/bad.py]
+known_negative_examples: [.bugcorpus/corpus/BC-000002/fixtures/negative/fixed.py]
+detector_status: warning
+detector_ids: [forbidden-dynamic-execution-v1]
+related_bug_cases: [BC-000001]
+family_id: unsafe-dynamic-execution

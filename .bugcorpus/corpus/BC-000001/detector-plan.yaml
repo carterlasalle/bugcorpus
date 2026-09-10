@@ -1,0 +1,51 @@
+bug: BC-000001
+family: stale-state-after-await
+related: []
+recommended_engine: custom
+rationale: purpose-built searcher; document minimum semantic model
+evidence:
+  id: BC-000001
+  title: Stale StateStore snapshot reused after await
+  invariant: Snapshot objects returned by snapshot acquisition calls may not be dereferenced
+    after a suspension point unless refreshed after the final await.
+  root_cause: snapshot obtained before an await is reused after another task may invalidate
+    that snapshot
+  symptom: request handler returns stale object state after concurrent update
+  signature:
+    kind: use-after-suspension
+    acquire:
+      call_matches: snapshot
+    invalidating_boundary: await expression
+    forbidden_use: attribute access or passing of the acquired object
+    allowed_if: object is reacquired after the final await
+  symbols:
+  - snapshot
+  - get_snapshot
+  calls:
+  - get_snapshot
+  - StateStore.snapshot
+  family: stale-state-after-await
+  fix.diff: "--- a/handlers.py\n+++ b/handlers.py (buggy)\n@@\n async def handle(request):\n\
+    -    snapshot = get_snapshot()\n-    await fetch_remote(request)\n-    snapshot\
+    \ = get_snapshot()\n+    snapshot = get_snapshot()\n+    await fetch_remote(request)\n\
+    \     return render(snapshot)\n"
+  fixtures:
+    positive:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000001/fixtures/positive/bad.py
+    negative:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000001/fixtures/negative/fixed.py
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000001/fixtures/negative/no_await.py
+    adversarial:
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000001/fixtures/adversarial/adv_negative_refreshed.py
+    - /Users/rocket/bugcorpus/.bugcorpus/corpus/BC-000001/fixtures/adversarial/adv_positive_renamed.py
+checklist:
+- minimize reproducer
+- positive fixture
+- fixed negative fixture
+- neighboring negatives
+- synthesize detector
+- verify fixtures
+- adversarial variants
+- scan repo
+- evaluation report
+- recommend promotion (shadow first)

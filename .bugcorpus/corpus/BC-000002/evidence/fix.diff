@@ -1,0 +1,8 @@
+--- a/calc.py
++++ b/calc.py (buggy)
+@@
++import ast
++
+ def calculate(request):
+-    return ast.literal_eval(request["expr"])
++    return eval(request["expr"])

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "finding",
+  "type": "object",
+  "required": ["detector_id", "path", "start_line", "fingerprint", "message"],
+  "properties": {
+    "detector_id": {"type": "string"},
+    "path": {"type": "string"},
+    "start_line": {"type": "integer", "minimum": 1},
+    "fingerprint": {"type": "string", "pattern": "^fp_[0-9a-f]{16}$"}
+  }
+}

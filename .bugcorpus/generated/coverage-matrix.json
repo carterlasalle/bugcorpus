@@ -1,0 +1,10 @@
+{
+  "BC-000001": {
+    "forbidden-dynamic-execution-v1": false,
+    "stale-state-after-await-v1": true
+  },
+  "BC-000002": {
+    "forbidden-dynamic-execution-v1": true,
+    "stale-state-after-await-v1": false
+  }
+}

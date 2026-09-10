@@ -1,0 +1,18 @@
+# Bug Corpus configuration
+[corpus]
+root = ".bugcorpus"
+
+[scan]
+include = ["bugcorpus/**/*.py", ".bugcorpus/detectors/**/*.py", ".bugcorpus/corpus/**/fixtures/**/*.py"]
+exclude = [".venv/**", ".git/**", ".bugcorpus/cache/**"]
+timeout_seconds = 120
+profiles = ["fast", "pr", "full"]
+
+[promotion]
+recall = 1.0
+neg_fp = 0
+adv_recall_blocking = 1.0
+
+[baseline]
+file = ".bugcorpus/baseline.json"
+fail_on_new_blocking = true
