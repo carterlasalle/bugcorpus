@@ -149,15 +149,37 @@ def _copy_tree(src: Path, dest: Path, log: list[str]) -> None:
 
 
 # trace:exempt reason=internal-detail
-def _copy_template(src: Path, dest: Path, old: str, new: str, log: list[str]) -> None:
-    """Copy a source file with one verbatim token substituted (e.g. invocation)."""
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    data = src.read_bytes().replace(old.encode(), new.encode())
-    if not dest.exists() or dest.read_bytes() != data:
-        dest.write_bytes(data)
-        log.append(f"{dest} (installed)")
+def _merge_hook_commands(path: Path, specs: list[tuple]) -> str:
+    """Merge hook commands into a hooks.json-style file without clobbering.
+
+    specs: (event, matcher or None, command, timeout). Existing entries —
+    including other tools' hooks — are never touched or removed. Unparseable
+    files are left alone, never overwritten.
+    """
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+        except ValueError:
+            return f"{path}: left alone (unparseable JSON)"
+        if not isinstance(data, dict):
+            return f"{path}: left alone (not a JSON object)"
     else:
-        log.append(f"{dest} (unchanged)")
+        data = {}
+    changed = False
+    for event, matcher, command, timeout in specs:
+        groups = data.setdefault("hooks", {}).setdefault(event, [])
+        if any(h.get("command") == command for g in groups for h in g.get("hooks", [])):
+            continue
+        entry: dict = {"hooks": [{"type": "command", "command": command, "timeout": timeout}]}
+        if matcher is not None:
+            entry["matcher"] = matcher
+        groups.append(entry)
+        changed = True
+    if not changed:
+        return f"{path}: unchanged"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    return f"{path}: merged"
 
 
 # trace:exempt reason=internal-detail
@@ -211,27 +233,16 @@ def install(repo: str | Path, harnesses: list[str] | None = None, bin: str | Non
         _copy_tree(skill_src, repo / ".claude" / "skills" / "bug-corpus", report["skills"])
         for cmd in sorted((src / "claude" / "commands").glob("*.md")):
             _copy_verbatim(cmd, repo / ".claude" / "commands" / cmd.name, report["files"])
-        cur = _read_hooks(repo / ".claude" / "settings.json")
-        merged = False
-        if not _has_hook_command(cur, "PostToolUse", post_cmd):
-            cur.setdefault("hooks", {}).setdefault("PostToolUse", []).append(
-                {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": post_cmd}]}
+        report["files"].append(
+            _merge_hook_commands(
+                repo / ".claude" / "settings.json",
+                [
+                    ("PostToolUse", "Edit|Write", post_cmd, 60),
+                    ("Stop", "", stop_cmd, 30),
+                    ("SessionStart", "", start_cmd, 30),
+                ],
             )
-        if not _has_hook_command(cur, "Stop", stop_cmd):
-            cur.setdefault("hooks", {}).setdefault("Stop", []).append(
-                {"matcher": "", "hooks": [{"type": "command", "command": stop_cmd}]}
-            )
-            merged = True
-        if not _has_hook_command(cur, "SessionStart", start_cmd):
-            cur.setdefault("hooks", {}).setdefault("SessionStart", []).append(
-                {"matcher": "", "hooks": [{"type": "command", "command": start_cmd}]}
-            )
-            merged = True
-        if merged:
-            _write_json(repo / ".claude" / "settings.json", cur)
-            report["files"].append(f"{rel(repo / '.claude' / 'settings.json')} (hook merged)")
-        else:
-            report["files"].append(f"{rel(repo / '.claude' / 'settings.json')} (unchanged)")
+        )
         report["files"].append(
             _merge_json_object(
                 repo / ".mcp.json", ["mcpServers", "bugcorpus"], mcp_server_entry(bin)
@@ -241,12 +252,15 @@ def install(repo: str | Path, harnesses: list[str] | None = None, bin: str | Non
         report["notes"].append("claude: " + TRUST_NOTES["claude"])
     if "codex" in targets:
         _copy_tree(skill_src, repo / ".agents" / "skills" / "bug-corpus", report["skills"])
-        _copy_template(
-            src / "codex" / "hooks.json",
-            repo / ".codex" / "hooks.json",
-            "uv run bugcorpus",
-            bin,
-            report["files"],
+        report["files"].append(
+            _merge_hook_commands(
+                repo / ".codex" / "hooks.json",
+                [
+                    ("PostToolUse", "Edit|Write", post_cmd, 60),
+                    ("Stop", None, stop_cmd, 30),
+                    ("SessionStart", None, start_cmd, 30),
+                ],
+            )
         )
         report["files"].append(_merge_codex_config(repo / ".codex" / "config.toml", bin))
         report["pointers"].append(f"CODEX.md: {upsert_managed(repo / 'CODEX.md', bin)}")
@@ -295,12 +309,6 @@ def _has_hook_command(settings: dict, event: str, command: str) -> bool:
         return any(h.get("command") == command for g in groups for h in g.get("hooks", []))
     except AttributeError:
         return False
-
-
-# trace:exempt reason=internal-detail
-def _write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
 
 
 # trace:exempt reason=internal-detail
