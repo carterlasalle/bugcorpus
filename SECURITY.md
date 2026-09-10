@@ -19,9 +19,9 @@ CI. Treat detector additions with the same suspicion as any executed code:
 ## Reporting
 <!-- trace:v1 id=doc.bugcorpus-report work=WORK-BUG-ZJBDCZZ0 -->
 
-This repository has no private security process yet. Until `SECURITY.md`
-names one, report issues by opening a GitHub issue with the `security` label
-once a remote exists; do not commit exploits or live credentials.
+Use GitHub private vulnerability reporting on this repository
+(Security tab → Report a vulnerability). Do not open public issues for
+unfixed vulnerabilities, and do not commit exploits or live credentials.
 Supported versions: latest `main` only.
 
 ## CI supply chain
