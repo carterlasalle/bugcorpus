@@ -291,6 +291,8 @@ def test_hooks_session_stop(tmp_path, monkeypatch, capsys):
 
     from bugcorpus.cli import main as cli_main
 
+    monkeypatch.chdir(tmp_path)  # auto-draft must never see the real worktree
+
     def run_stop(event: dict) -> str:
         monkeypatch.setattr("sys.stdin", _io.StringIO(_json.dumps(event)))
         assert cli_main(["hooks", "session-stop"]) in (0, None)
@@ -310,3 +312,85 @@ def test_hooks_session_stop(tmp_path, monkeypatch, capsys):
         '{"type":"assistant","text":"recorded as BC-0007"}\n'
     )
     assert run_stop({"transcript_path": str(tr2)}) == ""  # already learned: silent
+
+
+def _git_repo(path):
+    subprocess.run(["git", "init", "-q"], check=True, cwd=path)
+    subprocess.run(["git", "config", "user.email", "t@t"], check=True, cwd=path)
+    subprocess.run(["git", "config", "user.name", "t"], check=True, cwd=path)
+    (path / ".bugcorpus").mkdir()
+    (path / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "-A"], check=True, cwd=path)
+    subprocess.run(["git", "commit", "-qm", "start"], check=True, cwd=path)
+
+
+# trace:v1 id=test.bugcorpus-cli.learn-auto verifies=REQ-BUG-0VGE5410 exercises=impl.bugcorpus-cli.learn-auto
+def test_learn_auto_captures_and_dedups(tmp_path, monkeypatch):
+    from bugcorpus.cli import main as cli_main
+
+    _git_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.py").write_text("x = 2\n")
+    assert cli_main(["learn", "--auto", "--title", "off by two"]) == 0
+    import yaml as _yaml
+
+    bug = _yaml.safe_load(
+        (tmp_path / ".bugcorpus" / "corpus" / "BC-000001" / "bug.yaml").read_text()
+    )
+    assert bug["status"] == "proposed" and bug["violated_invariant"] == ""
+    assert bug["title"] == "off by two"
+    # second run dedups instead of cloning
+    assert cli_main(["learn", "--auto"]) == 0
+    assert sorted(p.name for p in (tmp_path / ".bugcorpus" / "corpus").iterdir()) == ["BC-000001"]
+
+
+def test_learn_auto_clean_worktree_reports_nothing(tmp_path, monkeypatch):
+    _git_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    assert cli_main(["learn", "--auto"]) == 1  # nothing to capture, loudly
+
+
+def test_stop_hook_auto_drafts_unlearned_fix(tmp_path, monkeypatch, capsys):
+    import io as _io
+    import json as _json
+
+    from bugcorpus.cli import main as cli_main
+
+    _git_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.py").write_text("x = 2\n")
+    tr = tmp_path / "fix.jsonl"
+    tr.write_text(
+        '{"type":"user","text":"fix this bug, it is a regression"}\n'
+        '{"type":"assistant","text":"root cause found, fixed, regression test added"}\n'
+    )
+    monkeypatch.setattr("sys.stdin", _io.StringIO(_json.dumps({"transcript_path": str(tr)})))
+    assert cli_main(["hooks", "session-stop"]) in (0, None)
+    out = capsys.readouterr().out
+    assert "proposed BC-000001" in out
+    assert (tmp_path / ".bugcorpus" / "corpus" / "BC-000001").is_dir()
+    # a second stop no longer drafts: the reminder names the existing draft
+    monkeypatch.setattr("sys.stdin", _io.StringIO(_json.dumps({"transcript_path": str(tr)})))
+    assert cli_main(["hooks", "session-stop"]) in (0, None)
+    assert "already proposes" in capsys.readouterr().out
+
+
+def test_promote_auto_advances_eligible_only(tmp_corpus):
+    import yaml as _yaml
+
+    from bugcorpus.cli import cmd_promote
+
+    class _A:
+        id = None
+        to = None
+        auto = True
+
+    ddir = store.detector_dir(str(tmp_corpus), "stale-state-after-await-v1")
+    mp = ddir / "detector.yaml"
+    m = _yaml.safe_load(mp.read_text())
+    m["state"] = "warning"  # demote the copy; blocking is the honest start otherwise
+    mp.write_text(_yaml.safe_dump(m, sort_keys=False))
+    res = cmd_promote(_A())
+    assert res["ok"] and res["promoted"] == ["stale-state-after-await-v1"]
+    assert _yaml.safe_load(mp.read_text())["state"] == "blocking"
+    assert cmd_promote(_A())["promoted"] == []  # second run is a no-op

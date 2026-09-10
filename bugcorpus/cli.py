@@ -106,9 +106,10 @@ def cmd_init(a):
 # trace:v1 id=impl.bugcorpus-cli.learn work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
 def cmd_learn(a):
     """Guided learn: capture evidence, rank families, create BugCase skeleton."""
-    import yaml as _yaml
-
     from .searcher import search
+
+    if a.auto:
+        return learn_auto_draft(a.title)
 
     bid = store.next_bug_id()
     if a.before or a.after or a.from_worktree:
@@ -130,19 +131,7 @@ def cmd_learn(a):
         "family_id": a.family or "",
         "related_candidates": [c["id"] for c in cands[:5]],
     }
-    d = store.bug_dir(None, bid)
-    (d / "evidence").mkdir(parents=True, exist_ok=True)
-    (d / "evidence" / "original.diff").write_text(ev.get("original.diff", ""))
-    (d / "evidence" / "fix.diff").write_text(ev.get("fix.diff", ""))
-    (d / "evidence" / "metadata.json").write_text(
-        json.dumps({"source": "learn", "before": a.before, "after": a.after}, indent=2)
-    )
-    (d / "bug.yaml").write_text(_yaml.safe_dump(bug, sort_keys=False))
-    (d / "summary.md").write_text(
-        f"# {bid} {bug['title']}\n\nTODO: fill symptom/root_cause/violated_invariant.\n"
-    )
-    for sub in ("positive", "negative", "adversarial"):
-        (d / "fixtures" / sub).mkdir(parents=True, exist_ok=True)
+    _store_draft(bid, bug, ev, {"source": "learn", "before": a.before, "after": a.after})
     store.write_index()
     steps = [
         "state symptom vs root_cause vs violated_invariant",
@@ -151,6 +140,104 @@ def cmd_learn(a):
         f"run: bugcorpus verify {bid}",
     ]
     return {"id": bid, "family_candidates": cands[:5], "next_steps": steps}
+
+
+# trace:exempt reason=internal-detail
+def _store_draft(bid: str, bug: dict, ev: dict, metadata: dict) -> None:
+    import yaml as _yaml
+
+    d = store.bug_dir(None, bid)
+    (d / "evidence").mkdir(parents=True, exist_ok=True)
+    (d / "evidence" / "original.diff").write_text(ev.get("original.diff", ""))
+    (d / "evidence" / "fix.diff").write_text(ev.get("fix.diff", ""))
+    (d / "evidence" / "metadata.json").write_text(json.dumps(metadata, indent=2))
+    (d / "bug.yaml").write_text(_yaml.safe_dump(bug, sort_keys=False))
+    (d / "summary.md").write_text(
+        f"# {bid} {bug.get('title', '')}\n\nTODO: fill symptom/root_cause/violated_invariant.\n"
+    )
+    for sub in ("positive", "negative", "adversarial"):
+        (d / "fixtures" / sub).mkdir(parents=True, exist_ok=True)
+
+
+# trace:exempt reason=internal-detail
+def _short_stat() -> str:
+    import subprocess as _sp
+
+    try:
+        out = (
+            _sp.run(
+                ["git", "diff", "HEAD", "--stat"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            .stdout.strip()
+            .splitlines()
+        )
+    except (OSError, _sp.SubprocessError):
+        return "worktree changes"
+    if not out:
+        return "worktree changes"
+    return out[-1].strip()
+
+
+# trace:v1 id=impl.bugcorpus-cli.learn-auto work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
+def learn_auto_draft(title: str = "") -> dict:
+    """Non-interactive capture of the worktree diff as a proposed BugCase.
+
+    Never invents symptom, cause, or invariant — those stay empty for an
+    agent to fill. Dedups on the diff hash so repeated runs return the
+    existing draft instead of cloning it.
+    """
+    import hashlib as _hashlib
+    import subprocess as _sp
+
+    try:
+        # Exclude .bugcorpus itself: our own index writes would otherwise
+        # change the diff (and its hash) on every run. Detector fixes still
+        # go through interactive learn, which captures everything.
+        diff = _sp.run(
+            ["git", "diff", "HEAD", "--", ".", ":!.bugcorpus"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        ).stdout
+    except (OSError, _sp.SubprocessError):
+        diff = ""
+    if not diff.strip():
+        return {"ok": False, "reason": "clean worktree: nothing to capture"}
+    sha = _hashlib.sha1(diff.encode()).hexdigest()[:12]
+    for bid in store.list_bugs(None):
+        try:
+            meta = json.loads((store.bug_dir(None, bid) / "evidence" / "metadata.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if meta.get("diff_sha") == sha:
+            return {"ok": True, "id": bid, "created": False, "reason": "draft already exists"}
+    bid = store.next_bug_id()
+    bug = {
+        "id": bid,
+        "title": title or "auto-captured worktree changes",
+        "status": "proposed",
+        "created_at": store.utcnow(),
+        "language": "python",
+        "severity": "medium",
+        "confidence": "low",
+        "symptom": "",
+        "root_cause": "",
+        "violated_invariant": "",
+        "family_id": "",
+    }
+    _store_draft(
+        bid,
+        bug,
+        {"original.diff": "", "fix.diff": diff},
+        {"source": "learn-auto", "diff_sha": sha},
+    )
+    store.write_index()
+    return {"ok": True, "id": bid, "created": True, "diff_sha": sha}
 
 
 # trace:exempt reason=internal-detail
@@ -315,10 +402,54 @@ def cmd_detector_run(a):
     }
 
 
+# trace:v1 id=impl.bugcorpus-cli.promote-auto work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-FESAJNS2
+def promote_auto() -> dict:
+    """Advance every evaluated detector that meets blocking thresholds.
+
+    Only shadow/warning detectors move, and only to blocking. Drafts and
+    candidates still need agent synthesis; retired and blocking are untouched.
+    Thresholds — not a human — are the gate.
+    """
+    import argparse as _ap
+    from pathlib import Path as _P
+
+    from .verifier import verify_detector
+
+    repo = _P(store.root())
+    promoted, skipped = [], {}
+    for did in store.list_detectors(str(repo)):
+        try:
+            det, _ = store.load_detector(str(repo), did)
+        except (OSError, ValueError):
+            skipped[did] = "unreadable manifest"
+            continue
+        if det.state not in ("shadow", "warning"):
+            skipped[did] = f"state {det.state}: auto only advances shadow/warning"
+            continue
+        try:
+            v = verify_detector(repo, did)
+        except (OSError, ValueError, RuntimeError):
+            skipped[did] = "verification crashed"
+            continue
+        if v["ok"] and v.get("blocking_eligible"):
+            r = cmd_promote(_ap.Namespace(id=did, to="blocking", auto=False))
+            if r.get("ok"):
+                promoted.append(did)
+            else:
+                skipped[did] = r.get("error", "promotion refused")
+        else:
+            skipped[did] = "thresholds unmet"
+    return {"ok": True, "promoted": promoted, "skipped": skipped}
+
+
 # trace:v1 id=impl.bugcorpus-cli.promote work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-FESAJNS2
 def cmd_promote(a):
     import yaml as _yaml
 
+    if getattr(a, "auto", False):
+        return promote_auto()
+    if not a.id or not a.to:
+        return {"ok": False, "error": "usage: promote ID --to STATE or promote --auto"}
     d = store.detector_dir(None, a.id)
     mp = d / "detector.yaml"
     m = _yaml.safe_load(mp.read_text()) or {}
@@ -510,11 +641,24 @@ def cmd_hooks_stop() -> None:
             return
         hits, learned = stop_signals(text)
         if hits >= 2 and not learned:
-            print(
-                "Bug Corpus: this session looks like it fixed a bug. If it is a "
-                "genuine defect with a violated invariant (not a typo/format), "
-                "run /bug-learn before finishing so the bug class gains a detector."
-            )
+            draft = learn_auto_draft()
+            if draft.get("created"):
+                print(
+                    f"Bug Corpus: captured this session's diff as proposed {draft['id']} "
+                    f"({_short_stat()}). It has no invariant yet — run /bug-learn "
+                    f"on {draft['id']} to refine it into a detector, or leave it proposed."
+                )
+            elif draft.get("id"):
+                print(
+                    f"Bug Corpus: this session looks like it fixed a bug; {draft['id']} "
+                    f"already proposes these changes. Refine it with /bug-learn."
+                )
+            else:
+                print(
+                    "Bug Corpus: this session looks like it fixed a bug. If it is a "
+                    "genuine defect with a violated invariant (not a typo/format), "
+                    "run /bug-learn before finishing so the bug class gains a detector."
+                )
     except (OSError, ValueError):
         pass
     return
@@ -628,6 +772,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--after", default="")
     s.add_argument("--from-worktree", action="store_true")
     s.add_argument("--family", default="")
+    s.add_argument(
+        "--auto",
+        action="store_true",
+        help="non-interactive: capture the worktree diff as a proposed draft",
+    )
     s.set_defaults(fn=cmd_learn)
 
     s = sub.add_parser("show")
@@ -647,7 +796,19 @@ def build_parser() -> argparse.ArgumentParser:
     f = fs.add_parser("show")
     f.add_argument("id")
     f.set_defaults(fn=cmd_family_show)
-
+    s = sub.add_parser("promote")
+    s.add_argument("id", nargs="?")
+    s.add_argument(
+        "--to",
+        required=False,
+        choices=["draft", "candidate", "shadow", "warning", "blocking", "retired"],
+    )
+    s.add_argument(
+        "--auto",
+        action="store_true",
+        help="promote every eligible shadow/warning detector to blocking",
+    )
+    s.set_defaults(fn=cmd_promote)
     s = sub.add_parser("synthesize")
     s.add_argument("id", nargs="?")
     s.add_argument("--family", default="")
@@ -681,15 +842,6 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("id")
     d.add_argument("files", nargs="*")
     d.set_defaults(fn=cmd_detector_run)
-
-    s = sub.add_parser("promote")
-    s.add_argument("id")
-    s.add_argument(
-        "--to",
-        required=True,
-        choices=["draft", "candidate", "shadow", "warning", "blocking", "retired"],
-    )
-    s.set_defaults(fn=cmd_promote)
 
     s = sub.add_parser("baseline")
     s.add_argument("--record", action="store_true", help="record current findings as tracked debt")

@@ -24,7 +24,10 @@ Found/fixed a bug, regression, root cause; asked to prevent a bug class, search 
 6. Verify: `uv run bugcorpus verify BC-NNNNNN` (positives fire, negatives silent).
 7. Attack the detector (rename, alias, move, rephrase), then `uv run bugcorpus scan`.
 8. New detectors land in `shadow`; promote to `warning`/`blocking` only on full fixture recall + zero negative false positives.
+9. Close the loop in the same session: `uv run bugcorpus promote --auto`,
+   open a PR, set `gh pr merge --auto --merge` so green CI merges it.
+   Never leave an unlearned fix behind — the stop hook drafts it as proposed.
 
-Do NOT learn typos, formatting, dependency bumps, or style opinions. Never gate a promoted detector on an LLM at scan time.
+Do NOT learn typos, formatting, dependency bumps, or style opinions. Never gate a promoted detector on an LLM at scan time. Never create corpus entries from heuristics alone: `proposed` drafts from `learn --auto` carry no invariant until an agent refines them.
 
 References: `references/ladder.md`, `references/fixtures.md`, `references/promotion.md`.

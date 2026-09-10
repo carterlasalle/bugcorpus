@@ -138,6 +138,12 @@ any adapter present.
 Detectors that fail fixture verification can never be `blocking` — `promote`
 enforces 100% positive recall and zero negative false positives.
 
+No human gate is required to close the loop: finish learn→promote in the same
+session, open a PR, and set auto-merge so green CI merges it. The stop hook
+captures an unlearned fix as a `proposed` draft automatically (never an
+invariant — those need judgment), `promote --auto` advances every eligible
+detector on thresholds alone, and Dependabot PRs auto-merge when green.
+
 ## Architecture
 
 <!-- trace:v1 id=doc.bugcorpus-readme-architecture work=WORK-BUG-ZJBDCZZ0 -->

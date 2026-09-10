@@ -8,6 +8,9 @@
   recall at threshold (see `.bugcorpus/config.toml` [promotion])
 
 `bugcorpus promote DET --to blocking` enforces thresholds automatically.
+`bugcorpus promote --auto` advances every eligible shadow/warning detector
+to blocking in one pass (drafts, candidates, and retired detectors are never
+touched) — thresholds, not a human, are the gate.
 False positives are detector bugs until proven otherwise — improve the
 detector before reaching for suppressions. Suppressions live in
 `.bugcorpus/suppressions/` with detector, fingerprint, reason, timestamp.
