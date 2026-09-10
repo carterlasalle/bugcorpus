@@ -109,6 +109,7 @@ Baseline mode hides old repo debt but never historical fixtures.
 
 `init`, `learn [--from-worktree|--before|--after]`, `show`, `related`,
 `search`, `family list|show`, `synthesize [--family]`, `verify [--detector]`,
+`coverage` (bugs × engines plus family recall rollups, from live verification),
 `scan [--all|--changed|--diff|--profile]`, `detector list|show|run`,
 `promote --to`, `suppress`, `doctor`, `adapters install [--only,--check]`,
 `export sarif`, `mine-history`, `mcp`, `hooks post-tool-use`.
