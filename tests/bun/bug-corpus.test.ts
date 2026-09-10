@@ -46,12 +46,12 @@ function load(s: ReturnType<typeof stub>): void {
 }
 
 describe("bug-corpus extension", () => {
-  test("registers three commands and one hook, once across double load", () => {
+  test("registers three commands and two hooks, once across double load", () => {
     const s = stub();
     load(s);
     load(s);
     expect([...s.commands.keys()]).toEqual(["bug-corpus", "bug-learn", "bug-scan"]);
-    expect([...s.handlers.keys()]).toEqual(["tool_result"]);
+    expect([...s.handlers.keys()]).toEqual(["session_start", "tool_result"]);
   });
 
   test("tool_result ignores non-edit tools and non-python files", async () => {
@@ -79,11 +79,31 @@ describe("bug-corpus extension", () => {
     load(s);
     const hook = s.handlers.get("tool_result");
     if (!hook) throw new Error("tool_result handler not registered");
-    const repo = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "");
+    const repo = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
     const out = await hook(
       { toolName: "edit", input: { path: `${repo}/bugcorpus/cli.py` }, content: [] },
       { cwd: repo },
     );
     expect(out).toBeUndefined(); // no findings in cli.py -> silent
   }, 120000); // nested `uv run` under pytest contends the uv lock; extension caps at 30s
+
+  test("session_start announces verified state in enrolled repos", async () => {
+    const s = stub();
+    load(s);
+    const hook = s.handlers.get("session_start");
+    if (!hook) throw new Error("session_start handler not registered");
+    const repo = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
+    await hook({}, { cwd: repo, ui: s.pi.ui });
+    expect(s.notes.join("\n")).toContain("Bug Corpus");
+    expect(s.notes.join("\n")).toContain("loaded");
+  }, 120000);
+
+  test("session_start stays silent outside enrolled repos", async () => {
+    const s = stub();
+    load(s);
+    const hook = s.handlers.get("session_start");
+    if (!hook) throw new Error("session_start handler not registered");
+    await hook({}, { cwd: "/tmp", ui: s.pi.ui });
+    expect(s.notes).toEqual([]);
+  }, 120000);
 });

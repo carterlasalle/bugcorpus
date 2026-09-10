@@ -256,6 +256,34 @@ def test_omp_extension_bun_suite():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
+# trace:v1 id=test.bugcorpus-cli.session-start verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-cli.session-start
+def test_hooks_session_start_verified(tmp_path, monkeypatch, capsys):
+    from bugcorpus.cli import main as cli_main
+
+    # unenrolled directory: silent, exit 0
+    monkeypatch.chdir(tmp_path)
+    assert cli_main(["hooks", "session-start"]) in (0, None)
+    assert capsys.readouterr().out == ""
+    # enrolled repo: verified counts plus per-detector load state
+    monkeypatch.chdir(REPO)
+    assert cli_main(["hooks", "session-start"]) in (0, None)
+    out = capsys.readouterr().out
+    assert "Bug Corpus" in out and "loaded" in out
+    assert "stale-state-after-await-v1 [custom]" in out
+    assert "forbidden-dynamic-execution-v1 [lexical]" in out
+
+
+def test_hooks_session_start_flags_broken_manifest(tmp_corpus, capsys):
+    from bugcorpus.cli import main as cli_main
+
+    (
+        tmp_corpus / ".bugcorpus" / "detectors" / "stale-state-after-await-v1" / "detector.yaml"
+    ).write_text("id: [broken\n")
+    assert cli_main(["hooks", "session-start"]) in (0, None)
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "failed to load" in out
+
+
 # trace:v1 id=test.bugcorpus-cli.session-stop verifies=REQ-BUG-MKCEMW39 exercises=impl.bugcorpus-cli.session-stop
 def test_hooks_session_stop(tmp_path, monkeypatch, capsys):
     import io as _io

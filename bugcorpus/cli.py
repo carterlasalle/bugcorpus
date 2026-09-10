@@ -520,11 +520,55 @@ def cmd_hooks_stop() -> None:
     return
 
 
+# trace:v1 id=impl.bugcorpus-cli.session-start work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_hooks_start() -> None:
+    """Announce verified load state: counts plus per-detector load checks."""
+    from pathlib import Path as _P
+
+    from . import __version__
+    from .engines import ENGINES
+
+    try:
+        root = _P(store.root())
+        if not (root / ".bugcorpus").is_dir():
+            return  # not enrolled: silent
+        cwd = str(root)
+        bugs = store.list_bugs(cwd)
+        fams = store.list_families(cwd)
+        ok, broken, blocking = [], [], 0
+        for did in store.list_detectors(cwd):
+            try:
+                det, _ = store.load_detector(cwd, did)
+            except Exception:  # noqa: BLE001 -- hook reports load state, never crashes on it
+                broken.append(did)
+                continue
+            eng = ENGINES.get(det.engine)
+            available = eng.available()[0] if eng else False
+            if det.state == "blocking":
+                blocking += 1
+            flag = "" if available else " (engine unavailable here)"
+            ok.append(f"{did} [{det.engine}{flag}]")
+        print(
+            f"Bug Corpus {__version__} loaded: {len(bugs)} bugs, "
+            f"{len(ok)} detectors ({blocking} blocking), {len(fams)} families."
+        )
+        if ok:
+            print("Detectors verified loadable: " + ", ".join(sorted(ok)) + ".")
+        for did in sorted(broken):
+            print(f"WARNING: detector {did} failed to load; run `bugcorpus verify`.")
+        print("Run /bug-learn after fixing a bug; /bug-scan to scan.")
+    except (OSError, ValueError):
+        pass  # hooks are advisory; never block session start
+    return
+
+
 # trace:v1 id=impl.bugcorpus-cli.hooks work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-8HPVNRVG
 def cmd_hooks(a):
     """Cheap post-edit hook: fast-profile scan of the touched file. Always exits 0."""
     if a.hcmd == "session-stop":
         return cmd_hooks_stop()
+    if a.hcmd == "session-start":
+        return cmd_hooks_start()
     import json as _json
 
     from .engines import load_manifest
@@ -699,6 +743,8 @@ def build_parser() -> argparse.ArgumentParser:
     h = hs.add_parser("post-tool-use")
     h.set_defaults(fn=cmd_hooks)
     h = hs.add_parser("session-stop")
+    h.set_defaults(fn=cmd_hooks)
+    h = hs.add_parser("session-start")
     h.set_defaults(fn=cmd_hooks)
     return p
 

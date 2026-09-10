@@ -22,41 +22,55 @@ export default function bugCorpus(pi: ExtensionAPI): void {
   const HOOK_TIMEOUT_MS = 30_000;
 
   // trace:exempt reason=internal-detail
-  const run = (args: string[], input: string, cwd?: string): Promise<string> => {
-    const { promise, resolve } = Promise.withResolvers<string>();
+  const runRaw = (
+    cmd: string[],
+    args: string[],
+    input: string,
+    cwd?: string,
+  ): Promise<{ out: string; spawned: boolean }> => {
+    const { promise, resolve } = Promise.withResolvers<{ out: string; spawned: boolean }>();
     let out = "";
     let done = false;
     const timer = setTimeout(() => {
       if (done) return;
       done = true;
-      resolve("");
+      resolve({ out, spawned: true });
     }, HOOK_TIMEOUT_MS);
     // trace:exempt reason=internal-detail
-    const finish = (text: string): void => {
+    const finish = (text: string, spawned: boolean): void => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      resolve(text);
+      resolve({ out: text, spawned });
     };
     let child: ChildProcess | undefined;
     try {
-      child = spawn("uv", ["run", "bugcorpus", ...args], { cwd });
+      child = spawn(cmd[0], [...cmd.slice(1), ...args], { cwd });
     } catch {
-      finish("");
+      finish("", false);
       return promise;
     }
     child.stdout?.on("data", (d: unknown) => {
       out += String(d);
     });
-    child.on("error", () => finish(""));
-    child.on("close", () => finish(out));
+    child.on("error", () => finish("", false));
+    child.on("close", () => finish(out, true));
     try {
       child.stdin?.write(input);
       child.stdin?.end();
     } catch {
-      finish("");
+      finish("", false);
     }
     return promise;
+  };
+
+  // Prefer the installed `bugcorpus` entry point; fall back to the dev
+  // checkout form. The fallback runs only when the binary is missing.
+  // trace:exempt reason=internal-detail
+  const run = async (args: string[], input: string, cwd?: string): Promise<string> => {
+    const first = await runRaw(["bugcorpus"], args, input, cwd);
+    if (first.spawned) return first.out;
+    return (await runRaw(["uv", "run", "bugcorpus"], args, input, cwd)).out;
   };
 
   // One call shape for all user-facing notes; three call sites share it.
@@ -104,8 +118,14 @@ export default function bugCorpus(pi: ExtensionAPI): void {
     },
   });
 
-  // Cheap post-edit hook: fast-profile scan of the touched file only.
-  // Silent unless the hook itself reports findings or errors.
+  // Session announcement: verified load state, silent outside enrolled repos.
+  // The CLI prints nothing without a .bugcorpus directory, so a bare notify
+  // of empty output would be noise: only notify when it says something.
+  pi.on("session_start", async (_event, ctx) => {
+    const out = await run(["hooks", "session-start"], "", ctx.cwd);
+    if (out.trim()) notify(ctx, out.trim().slice(0, 800));
+  });
+
   pi.on("tool_result", async (event, ctx) => {
     if (event.toolName !== "edit" && event.toolName !== "write") return;
     const input = (event.input ?? {}) as Record<string, unknown>;
