@@ -59,6 +59,10 @@ def test_promote_enforces_blocking_thresholds(tmp_corpus):
     assert m["state"] == "warning"
     # stale detector has full adversarial recall: blocking is allowed
     assert cli_main(["promote", "stale-state-after-await-v1", "--to", "blocking"]) == 0
+    from bugcorpus.scanner import blocking_failed, run_scan
+
+    # blocking detector with unbaselined findings fails the gate: CI would fail
+    assert blocking_failed(run_scan(str(tmp_corpus), profile="pr")) is True
 
 
 def test_promote_blocks_when_adv_recall_short(tmp_corpus):
