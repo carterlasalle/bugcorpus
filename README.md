@@ -1,6 +1,6 @@
-<div align="center">
-
 # Bug Corpus
+
+<div align="center">
 
 **A compiler from historical bugs into permanent deterministic detectors.**
 
@@ -143,7 +143,7 @@ the core never imports a harness.
 <!-- trace:v1 id=doc.bugcorpus-readme-coverage work=WORK-BUG-ZJBDCZZ0 -->
 
 `uv run bugcorpus coverage` verifies every detector live and writes
-`generated/coverage-matrix.json`: bugs × engines plus per-family rollups with
+`.bugcorpus/generated/coverage-matrix.json`: bugs × engines plus per-family rollups with
 members, protecting detectors, known/adversarial recall, negative FP rate,
 and promotion state.
 
