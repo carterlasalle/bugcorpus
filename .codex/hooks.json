@@ -1,5 +1,5 @@
 {
-  "description": "Bug Corpus cheap post-edit scan. Advisory only: findings surface in context, CI enforces. Project hooks require trust; see https://learn.chatgpt.com/docs/hooks",
+  "description": "Bug Corpus cheap hooks. Advisory only: findings surface in context, CI enforces. Project hooks require trust; see https://learn.chatgpt.com/docs/hooks",
   "hooks": {
     "PostToolUse": [
       {
@@ -9,6 +9,17 @@
             "type": "command",
             "command": "uv run bugcorpus hooks post-tool-use",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run bugcorpus hooks session-stop",
+            "timeout": 30
           }
         ]
       }

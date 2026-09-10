@@ -85,5 +85,5 @@ describe("bug-corpus extension", () => {
       { cwd: repo },
     );
     expect(out).toBeUndefined(); // no findings in cli.py -> silent
-  }, 60000); // nested `uv run` under pytest contends the uv lock; extension caps at 30s
+  }, 120000); // nested `uv run` under pytest contends the uv lock; extension caps at 30s
 });
