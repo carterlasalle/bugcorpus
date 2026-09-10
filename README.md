@@ -1,15 +1,57 @@
 # Bug Corpus
+
+<div align="center">
+
+**A compiler from historical bugs into permanent deterministic detectors.**
+
+[![CI](https://github.com/carterlasalle/bugcorpus/actions/workflows/bugcorpus.yml/badge.svg)](https://github.com/carterlasalle/bugcorpus/actions/workflows/bugcorpus.yml)
+![Python](https://img.shields.io/badge/Python-%3E%3D3.11-3776AB?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/uv-managed-000000?logo=astral&logoColor=white)
+
+[Quick start](#quick-start) · [Agent workflow](#agent-workflow) · [Architecture](#architecture) · [Coverage matrix](#coverage-matrix) · [Agent adapters](#agent-adapters) · [Decisions](docs/adr/) · [Contributing](#contributing)
+
+</div>
 <!-- trace:v1 id=doc.bugcorpus-readme work=WORK-BUG-ZJBDCZZ0 -->
 
-A compiler from historical bugs into permanent deterministic detectors.
-A fixed bug becomes structured evidence (`BugCase` → minimized reproducer →
-violated invariant → semantic signature → detector candidates → adversarial
-evaluation → promoted detector), and CI runs every promoted detector without an LLM.
+Bug Corpus gives a repository the operating model of a team that never makes the same class of mistake twice — without an LLM at scan time, without a markdown bug diary, and without one giant Semgrep config. A confirmed bug becomes a structured BugCase, a minimized reproducer, a stated invariant, and finally a deterministic detector that runs in CI. Every later instance of that bug class is caught automatically.
 
-## Quickstart
+## How it works
+
+<!-- trace:v1 id=doc.bugcorpus-readme-how work=WORK-BUG-ZJBDCZZ0 -->
+
+```mermaid
+flowchart LR
+    A[Confirmed bug + fix] --> B[BugCase: symptom vs cause vs invariant]
+    B --> C[Minimized fixtures: positive, negative, adversarial]
+    C --> D[Cheapest adequate detector engine]
+    D --> E[Adversarial evaluation: recall and precision]
+    E --> F[Explicit promotion: shadow to blocking]
+    F --> G[CI enforcement without an LLM]
+```
+
+BugCase records are the source of truth. Generated indexes (`corpus-index.json`, `detector-index.json`, `coverage-matrix.json`) are derived artifacts; they are regenerated, never hand-edited. Findings carry stable fingerprints, so CI distinguishes new violations from tracked debt.
+
+## Capabilities
+
+<!-- trace:v1 id=doc.bugcorpus-readme-capabilities work=WORK-BUG-ZJBDCZZ0 -->
+
+| Area | What Bug Corpus provides |
+|---|---|
+| Corpus | Stable `BC-NNNNNN` records, symptom/root-cause/invariant separation, semantic signatures, families, detector lineage, history mining |
+| Synthesis | Evidence packs, cheapest-engine ladder, positive/negative/adversarial fixtures, recall and precision metrics, explicit promotion |
+| Scanning | Eight engine adapters, `fast`/`pr`/`full` profiles, full/diff/targeted scopes, suppressions, baselines, SARIF export, stable fingerprints |
+| Agents | One canonical skill, verified OMP/Claude/Codex adapters, cheap post-edit hooks, stop-time reminders, MCP server |
+| CI | Fixture verification, PR scans, full scheduled scans, blocking gates, coverage matrix artifact |
+
+## Quick start
+
 <!-- trace:v1 id=doc.bugcorpus-readme-quickstart work=WORK-BUG-ZJBDCZZ0 -->
 
-Prerequisites: Python 3.11+, `uv`.
+### Prerequisites
+
+- Python `>=3.11`
+- [`uv`](https://docs.astral.sh/uv/)
+- Git
 
 ```sh
 uv sync
@@ -19,6 +61,7 @@ uv run bugcorpus scan       # run promoted detectors (add --json for machines)
 ```
 
 ## Install
+
 <!-- trace:v1 id=doc.bugcorpus-readme-install work=WORK-BUG-ZJBDCZZ0 -->
 
 Prerequisites: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), git.
@@ -51,49 +94,107 @@ Uninstall: `git clean` the installed paths (they are all listed by
 delete the harness directories; `bugcorpus verify` and `scan` never need
 any adapter present.
 
-## Real workflow
+## Agent workflow
+
 <!-- trace:v1 id=doc.bugcorpus-readme-workflow work=WORK-BUG-ZJBDCZZ0 -->
 
-```sh
-# 1. fix the bug, prove the fix with normal tests
-uv run bugcorpus learn --title "stale snapshot reused after await"
-# 3. state symptom vs root cause vs violated invariant in .bugcorpus/corpus/BC-NNNNNN/bug.yaml
-# 4. check for siblings before inventing a detector
-uv run bugcorpus search "snapshot await stale"
-uv run bugcorpus related BC-000001
-# 5. synthesize (cheapest adequate engine) + verify + attack + scan
-uv run bugcorpus synthesize BC-000001
-uv run bugcorpus verify BC-000001
-uv run bugcorpus scan --all
-# 6. promote explicitly: shadow → warning → blocking
-uv run bugcorpus promote stale-state-after-await-v1 --to warning
-```
+1. Fix the bug, prove the fix with normal tests.
+2. `uv run bugcorpus learn --title "stale snapshot reused after await"`.
+3. State symptom vs root cause vs violated invariant in `.bugcorpus/corpus/BC-NNNNNN/bug.yaml`.
+4. Check for siblings before inventing a detector:
+   `uv run bugcorpus search "snapshot await stale"`,
+   `uv run bugcorpus related BC-000001`.
+5. Synthesize the cheapest adequate detector, verify fixtures, attack it:
+   `uv run bugcorpus synthesize BC-000001`,
+   `uv run bugcorpus verify BC-000001`,
+   `uv run bugcorpus scan --all`.
+6. Promote explicitly, shadow first:
+   `uv run bugcorpus promote stale-state-after-await-v1 --to warning`.
 
 Detectors that fail fixture verification can never be `blocking` — `promote`
 enforces 100% positive recall and zero negative false positives.
 
 ## Architecture
+
 <!-- trace:v1 id=doc.bugcorpus-readme-architecture work=WORK-BUG-ZJBDCZZ0 -->
 
-Five layers; the first three work with no agent installed:
+Five independent layers; the first three work with no agent installed.
+Full design in [DESIGN.md](DESIGN.md); decisions in [docs/adr/](docs/adr/).
 
-1. **Corpus** (`.bugcorpus/corpus/BC-NNNNNN/`, `families/`) — bug cases with
-   symptom/root-cause/invariant kept distinct, semantic signatures, lineage.
-2. **Synthesis/evaluation** (`bugcorpus/synthesizer.py`, `verifier.py`) — evidence
-   packs, cheapest-engine ladder, fixture + adversarial evaluation, metrics.
-3. **Scanner runtime** (`engines.py`, `scanner.py`) — engine adapters
-   (existing, lexical, ast-grep, semgrep, semgrep-taint, codeql, pysa, custom),
-   profiles (`fast`/`pr`/`full`), baselines, stable fingerprints, SARIF export.
-4. **Agent integration** (`skills/bug-corpus/`, `adapters.py`, `mcp_server.py`) —
-   one canonical skill, thin per-harness installs (OMP, Claude Code, Codex),
-   optional MCP server over the same library the CLI uses.
-5. **CI/developer integration** (`.github/workflows/bugcorpus.yml`) —
-   `verify` + `scan --profile pr` on PRs, full scan on schedule.
+```text
+bugcorpus/               Deterministic core: corpus, engines, scanner,
+                         verifier, coverage, CLI, MCP server
+.bugcorpus/corpus/       BugCase records (source of truth)
+.bugcorpus/families/     Bug classes, independent of cases
+.bugcorpus/detectors/    Promoted detectors + manifests with lineage
+.bugcorpus/generated/    Regenerated indexes and coverage matrix
+skills/bug-corpus/       Canonical agent skill (single source)
+adapters/                Per-harness install sources (thin)
+tests/bugcorpus/         Pytest suite; tests/bun/ OMP extension tests
+.github/workflows/       verify + PR/full scans, CodeQL
+```
 
-A crashing detector reports `detector-error`, never a clean scan.
-Baseline mode hides old repo debt but never historical fixtures.
+Engine subprocesses are the only cross-process seam; every finding normalizes
+to the internal Finding schema (SARIF is export-only). Adapters call the core;
+the core never imports a harness.
+
+## Coverage matrix
+
+<!-- trace:v1 id=doc.bugcorpus-readme-coverage work=WORK-BUG-ZJBDCZZ0 -->
+
+`uv run bugcorpus coverage` verifies every detector live and writes
+`.bugcorpus/generated/coverage-matrix.json`: bugs × engines plus per-family rollups with
+members, protecting detectors, known/adversarial recall, negative FP rate,
+and promotion state.
+
+```text
+bug       exist    lex      agrep    semgrep  s-taint  codeql   pysa     custom
+BC-000001                                                                ✓
+BC-000002          ✓
+```
+
+## Safety model
+
+<!-- trace:v1 id=doc.bugcorpus-readme-safety work=WORK-BUG-ZJBDCZZ0 -->
+
+Bug Corpus intentionally makes weak detectors hard to promote:
+
+- A crashing detector reports `detector-error`, never a clean scan.
+- A historical fixture failing verification is never hidden by a baseline.
+- `blocking` requires full positive recall, zero negative false positives,
+  and full adversarial recall — enforced by `promote`, not by convention.
+- Detector code is repository code: subprocess argv arrays, no shells, no
+  untrusted interpolation, reviewed like source. See [SECURITY.md](SECURITY.md).
+- Suppressions are structured and auditable (detector, fingerprint, reason,
+  timestamp) — a detector bug until proven otherwise.
+
+## Repository status
+
+<!-- trace:v1 id=doc.bugcorpus-readme-status work=WORK-BUG-ZJBDCZZ0 -->
+
+Protected, PR-only `master` with strict required checks (`verify`, `scan-pr`,
+`analyze`). Solo-owner mode keeps direct pushes blocked without requiring a
+second reviewer account. Dependabot updates `uv` and Actions weekly; CodeQL
+analyzes Python on push, PR, and schedule. Secret scanning and push
+protection are enabled.
+
+## Documentation
+
+<!-- trace:v1 id=doc.bugcorpus-readme-docs work=WORK-BUG-ZJBDCZZ0 -->
+
+| Document | Purpose |
+|---|---|
+| [DESIGN.md](DESIGN.md) | Problem, layers, key decisions, non-goals |
+| [docs/adr/](docs/adr/) | Adapter strategy, detector protocol, fixture lineage, trace scope |
+| [CONTEXT.md](CONTEXT.md) | Domain vocabulary: BugCase, family, detector, fixture, fingerprint |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, bug-plus-detector workflow, quality gates |
+| [SECURITY.md](SECURITY.md) | Trust model, reporting, supply chain |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [Agent guidance](AGENTS.md) | Repository-specific instructions for coding agents |
+| [Skill](skills/bug-corpus/SKILL.md) | Canonical agent workflow with ladder/fixture/promotion references |
 
 ## Repo map
+
 <!-- trace:v1 id=doc.bugcorpus-readme-map work=WORK-BUG-ZJBDCZZ0 -->
 
 | Area | Path |
@@ -101,10 +202,12 @@ Baseline mode hides old repo debt but never historical fixtures.
 | CLI/core | `bugcorpus/` |
 | Corpus state | `.bugcorpus/` |
 | Canonical skill | `skills/bug-corpus/SKILL.md` |
-| Tests | `tests/bugcorpus/` |
-| CI | `.github/workflows/bugcorpus.yml` |
+| Adapter sources | `adapters/` |
+| Tests | `tests/bugcorpus/`, `tests/bun/` |
+| CI | `.github/workflows/bugcorpus.yml`, `codeql.yml` |
 
 ## Commands
+
 <!-- trace:v1 id=doc.bugcorpus-readme-commands work=WORK-BUG-ZJBDCZZ0 -->
 
 `init`, `learn [--from-worktree|--before|--after]`, `show`, `related`,
@@ -115,6 +218,7 @@ Baseline mode hides old repo debt but never historical fixtures.
 `export sarif`, `mine-history`, `mcp`, `hooks post-tool-use`.
 
 ## Agent adapters
+
 <!-- trace:v1 id=doc.bugcorpus-readme-adapters work=WORK-BUG-ZJBDCZZ0 -->
 
 One canonical skill (`skills/bug-corpus/SKILL.md`, Agent Skills frontmatter);
@@ -125,9 +229,19 @@ merges configs without clobbering. Everything works from a bare checkout:
 |---|---|---|
 | Claude Code | `.claude/skills/`, `.claude/commands/` (bug-corpus/learn/scan), settings hook merge, `.mcp.json` merge | approve MCP once |
 | Codex | `.agents/skills/`, AGENTS.md pointer, `.codex/hooks.json`, `.codex/config.toml` MCP merge | trust project hooks |
-| OMP | `.omp/skills/`, `.omp/extensions/bug-corpus/` (real extension: `/bug-corpus` `/bug-learn` `/bug-scan` + cheap post-edit hook) | restart session |
+| OMP | `.omp/skills/`, `.omp/extensions/bug-corpus/` (real extension: `/bug-corpus` `/bug-learn` `/bug-scan` + cheap post-edit scan) | restart session |
 
 Post-edit hooks in every harness call `uv run bugcorpus hooks post-tool-use`:
 fast-profile scan of the touched file, silent unless a warning/blocking
 detector fires, always exit 0 (advisory — CI enforces). Details and
 alternatives in `docs/adr/001-bare-checkout-adapters.md`.
+
+## Contributing
+
+<!-- trace:v1 id=doc.bugcorpus-readme-contributing work=WORK-BUG-ZJBDCZZ0 -->
+
+This repository uses protected, PR-only pull requests with required checks.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Run the test
+suite and `uv run bugcorpus verify` before opening a pull request, and keep
+`uv run bugcorpus adapters install --check` green when touching skills or
+adapters.
