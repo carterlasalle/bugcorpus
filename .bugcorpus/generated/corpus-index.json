@@ -1,0 +1,37 @@
+{
+  "bugs": [
+    {
+      "id": "BC-000001",
+      "title": "Stale StateStore snapshot reused after await",
+      "family": "stale-state-after-await",
+      "detectors": [
+        "stale-state-after-await-v1"
+      ],
+      "severity": "high",
+      "symbols": [
+        "snapshot",
+        "get_snapshot"
+      ],
+      "subsystem": "state-store",
+      "invariant": "Snapshot objects returned by snapshot acquisition calls may not be dereferenced after a suspension point unless refreshed after the final await."
+    },
+    {
+      "id": "BC-000002",
+      "title": "Raw eval on request-supplied expression",
+      "family": "unsafe-dynamic-execution",
+      "detectors": [
+        "forbidden-dynamic-execution-v1"
+      ],
+      "severity": "critical",
+      "symbols": [
+        "eval"
+      ],
+      "subsystem": "expression-service",
+      "invariant": "Code must never call eval/exec on a value that is not a static literal."
+    }
+  ],
+  "families": [
+    "stale-state-after-await",
+    "unsafe-dynamic-execution"
+  ]
+}

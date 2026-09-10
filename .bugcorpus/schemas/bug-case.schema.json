@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bug-case",
+  "type": "object",
+  "required": ["id", "title", "symptom", "root_cause", "violated_invariant"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^BC-[0-9]{6}$"},
+    "title": {"type": "string", "minLength": 1},
+    "status": {"enum": ["proposed", "confirmed", "fixed", "invalid"]},
+    "severity": {"enum": ["low", "medium", "high", "critical"]},
+    "symptom": {"type": "string", "minLength": 1},
+    "root_cause": {"type": "string", "minLength": 1},
+    "violated_invariant": {"type": "string", "minLength": 1},
+    "family_id": {"type": "string"},
+    "detector_ids": {"type": "array", "items": {"type": "string"}}
+  }
+}

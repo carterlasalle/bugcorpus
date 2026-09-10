@@ -1,0 +1,31 @@
+[project]
+name = "bugcorpus"
+version = "0.1.0"
+description = "Compiler from historical bugs into permanent deterministic detectors"
+requires-python = ">=3.11"
+dependencies = ["pyyaml>=6"]
+readme = "README.md"
+
+[project.scripts]
+bugcorpus = "bugcorpus.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bugcorpus"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+# Corpus fixtures are intentionally minimized snippets with unresolved
+# names (~15 lines preserving one property); they are detector test data.
+".bugcorpus/**/fixtures/**/*.py" = ["F821"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
