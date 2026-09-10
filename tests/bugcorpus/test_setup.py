@@ -69,6 +69,7 @@ def test_init_writes_detected_scope(tmp_path, monkeypatch):
     assert cli_main(["init", "."]) == 0
     text = (tmp_path / ".bugcorpus" / "config.toml").read_text()
     assert "**/*.rs" in text
+    assert "node_modules/**" in text
 
 
 def test_doctor_flags_setup_problems(tmp_path):
