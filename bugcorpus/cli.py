@@ -58,6 +58,18 @@ def print_human(data):
         for note in data.get("notes", []):
             print(f"note: {note}")
         return
+    if isinstance(data, dict) and "msg" in data and "bin" in data and "files" in data:
+        print(data["msg"])
+        print(
+            f"adapters: {'OK' if data.get('ok') else 'FAIL'} ({data['files']} files, via {data['bin']})"
+        )
+        for p in data.get("problems", []):
+            print(f"  problem: {p}")
+        for n in data.get("notes", [])[:5]:
+            print(f"  note: {n}")
+        print("next: bugcorpus learn  # record your first fixed bug as a BugCase")
+        print("then: bugcorpus verify # prove its detector catches it")
+        return
     if (
         isinstance(data, dict)
         and isinstance(data.get("detectors"), list)
@@ -111,7 +123,14 @@ def cmd_init(a):
     # init is the single setup command: corpus scaffold plus adapters,
     # so a fresh repo is ready to open and run with nothing else to invoke.
     adapters = install(str(c.parent))
-    return {"ok": adapters["ok"], "msg": msg, "bin": adapters.get("bin")}
+    return {
+        "ok": adapters["ok"],
+        "msg": msg,
+        "bin": adapters.get("bin"),
+        "files": len(adapters.get("files", [])),
+        "notes": adapters.get("notes", []),
+        "problems": adapters.get("problems", []),
+    }
 
 
 # trace:v1 id=impl.bugcorpus-cli.learn work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-0VGE5410
