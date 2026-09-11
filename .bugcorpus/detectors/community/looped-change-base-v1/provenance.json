@@ -1,0 +1,15 @@
+{
+  "id": "looped-change-base-v1",
+  "version": 1,
+  "engine": "custom",
+  "family": "subprocess-fanout-in-loop",
+  "catches": [
+    "BC-000002"
+  ],
+  "source_repo": "https://github.com/carterlasalle/tracelayer.git",
+  "author": "Carter LaSalle",
+  "author_email": "carterlasalle@users.noreply.github.com",
+  "license": "MIT",
+  "exported_at": "2026-09-11T06:01:09+00:00",
+  "bugcorpus_version": "0.2.0"
+}
