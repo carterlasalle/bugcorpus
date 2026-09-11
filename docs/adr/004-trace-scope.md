@@ -19,7 +19,12 @@ adapter installer) and the adapter/CI contracts. Exclude via `trace ignore`:
 
 - `.bugcorpus/` (records, fixtures, evidence, generated indexes — data),
 - `uv.lock`, `pyrightconfig.json`, `CODEX.md`, `.codex/hooks.json`
-  (generated manifests the tool cites as typical exclusions).
+  (generated manifests the tool cites as typical exclusions),
+- `bughunt.toml`, `bun.lock`, `package.json`, `.pyre_configuration`,
+  `.pyre/` (foreign-managed bootstrap from a bughunt evaluation run:
+  markers would be clobbered by that tool or pollute its configs, and the
+  files carry no Bug Corpus behavior. Revisit if any of these paths
+  becomes repository-owned).
 
 Bug Corpus's own lineage (`catches`, coverage matrix) remains the audit trail
 for corpus data. Revisit if TraceLayer gains data-record semantics.
