@@ -1,0 +1,18 @@
+id: merge-pop-under-merge-v1
+version: 1
+family: merge-loses-deletion
+engine: custom
+entrypoint: detect.py
+languages: [python]
+cost: cheap
+state: blocking
+catches: [BC-000001]
+requires_full_scan: false
+severity: medium
+confidence: high
+description: dict.pop/del clears in a merge-on-write store never survive the merge.
+remediation: Write None (tombstone) instead of popping or deleting the key.
+# Minimum semantic model: file-level merge-store gate (_merge_* helper or
+# _write calling one) plus pop/del inside *clear* methods. Explicitly NOT
+# modeled: deletions flowing through helpers in other files, cross-file
+# merge stores, non-dict state backends.
