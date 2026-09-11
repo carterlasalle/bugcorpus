@@ -61,6 +61,12 @@ paths = [
   "CODEX.md",
   "adapters/omp/package.json",
   "adapters/codex/hooks.json",
+  "bughunt.toml",
+  "bun.lock",
+  "package.json",
+  "pyre_configuration",
+  "pyre/pyre.stderr",
+  "pyre",
 ]
 extensions = [
 
