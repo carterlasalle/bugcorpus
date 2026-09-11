@@ -5,8 +5,20 @@ related:
   title: Stale StateStore snapshot reused after await
   family: stale-state-after-await
   score: 5
-recommended_engine: custom
-rationale: purpose-built searcher; document minimum semantic model
+- id: BC-000003
+  title: doctor/scan hang on unenrolled root
+  family: hostile-environment
+  score: 2
+- id: BC-000004
+  title: show/related/synthesize leak raw Errno on missing BugCase
+  family: hostile-environment
+  score: 2
+- id: BC-000005
+  title: hook entrypoints block on terminal stdin
+  family: hostile-environment
+  score: 2
+recommended_engine: semgrep-taint
+rationale: "source \u2192 propagation \u2192 sink dataflow"
 evidence:
   id: BC-000002
   title: Raw eval on request-supplied expression

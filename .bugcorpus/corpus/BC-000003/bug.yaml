@@ -1,0 +1,45 @@
+id: BC-000003
+title: doctor/scan hang on unenrolled root
+status: confirmed
+created_at: '2026-09-11T06:34:16+00:00'
+language: python
+subsystem: cli-scanner
+severity: medium
+confidence: high
+source: regression-test
+source_reference: tests/bugcorpus/test_setup.py::test_unenrolled_roots_never_glob
+bad_commit: e7a1210^
+good_commit: e7a1210
+symptom: running `bugcorpus doctor` in a directory without `.bugcorpus`
+  (e.g. $HOME) hangs indefinitely; the user cancelled after 18s with
+  KeyboardInterrupt deep in pathlib glob.
+user_impact: CLI appears frozen with no output; users kill it and lose
+  trust in doctor/scan.
+root_cause: store.root() falls back to cwd when no corpus dir exists, and
+  collect_files then runs the default `**/*.py` glob over the arbitrary
+  tree with excludes applied only after traversal.
+violated_invariant: File collection must never execute against a root
+  without a corpus dir; unenrolled roots yield empty scope immediately.
+required_preconditions:
+- cwd is not inside an enrolled repository
+triggering_operation: bugcorpus doctor (or scan) with cwd outside any corpus
+incorrect_behavior: recursive glob of the whole tree (e.g. $HOME including Library)
+correct_behavior: empty file list plus a 'not enrolled, run init' report
+semantic_signature:
+  kind: unbounded-walk
+  scope_gate: corpus-dir-present
+  forbidden_use: glob-on-unenrolled-root
+relevant_symbols: [collect_files, corpus_health, root]
+relevant_types: []
+relevant_calls: [Path.glob, store.root]
+relevant_modules: [pathlib, bugcorpus.scanner, bugcorpus.doctor]
+control_flow_properties: [missing-enrollment-guard]
+data_flow_properties: []
+state_transition_properties: []
+ordering_properties: []
+known_positive_examples: []
+known_negative_examples: []
+detector_status: tested
+detector_ids: []
+related_bug_cases: [BC-000004, BC-000005]
+family_id: hostile-environment

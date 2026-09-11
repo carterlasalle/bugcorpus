@@ -197,7 +197,7 @@ def test_synthesizer_pack_and_ladder():
 def test_mcp_dispatch_read_paths():
     from bugcorpus.mcp_server import dispatch
 
-    assert dispatch("bugcorpus_status", {})["bugs"] == 2
+    assert dispatch("bugcorpus_status", {})["bugs"] >= 2  # corpus grows; pin floor, not size
     assert dispatch("bugcorpus_show", {"id": "BC-000001"})["id"] == "BC-000001"
 
 

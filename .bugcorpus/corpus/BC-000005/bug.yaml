@@ -1,0 +1,44 @@
+id: BC-000005
+title: hook entrypoints block on terminal stdin
+status: confirmed
+created_at: '2026-09-11T06:35:02+00:00'
+language: python
+subsystem: cli-hooks
+severity: medium
+confidence: high
+source: regression-test
+source_reference: tests/bugcorpus/test_setup.py::test_hooks_never_read_a_terminal
+bad_commit: a623b12^
+good_commit: a623b12
+symptom: running a hook command by hand (e.g. `bugcorpus hooks
+  post-tool-use`) on a terminal hangs forever waiting for stdin EOF;
+  only Ctrl-D or Ctrl-C escapes.
+user_impact: hook debugging and manual invocation appear frozen; agent
+  harnesses without piped stdin would stall session hooks.
+root_cause: both hook entrypoints called sys.stdin.read() unconditionally;
+  on a TTY there is no EOF until the user sends one.
+violated_invariant: Hook entrypoints must never block on terminal stdin;
+  no piped event means no work, reported by instant silent exit 0.
+required_preconditions:
+- stdin is a terminal (no piped hook event)
+triggering_operation: manual `bugcorpus hooks ...` invocation on a TTY
+incorrect_behavior: indefinite block in sys.stdin.read()
+correct_behavior: empty event, silent exit 0
+semantic_signature:
+  kind: blocking-read
+  boundary: hook-entry
+  forbidden_use: stdin-read-on-tty
+relevant_symbols: [_hook_event, cmd_hooks, cmd_hooks_stop]
+relevant_types: []
+relevant_calls: [sys.stdin.read, sys.stdin.isatty]
+relevant_modules: [sys, bugcorpus.cli]
+control_flow_properties: [missing-tty-guard]
+data_flow_properties: []
+state_transition_properties: []
+ordering_properties: []
+known_positive_examples: []
+known_negative_examples: []
+detector_status: tested
+detector_ids: []
+related_bug_cases: [BC-000003, BC-000004]
+family_id: hostile-environment
