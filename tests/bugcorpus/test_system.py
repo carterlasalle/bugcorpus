@@ -242,6 +242,23 @@ def test_update_refreshes_repo(tmp_path, monkeypatch):
     assert meta["project"]["version"] == __version__  # single source of truth
 
 
+# trace:v1 id=test.bugcorpus-init.human-output verifies=REQ-BUG-MKCEMW39
+def test_init_reports_adapters_and_next_steps(tmp_path, monkeypatch, capsys):
+    from bugcorpus.cli import cmd_init, print_human
+
+    monkeypatch.chdir(tmp_path)
+
+    class _A:
+        path = "."
+        force = False
+
+    res = cmd_init(_A())
+    assert res["ok"] and res["files"] > 0 and isinstance(res["notes"], list)
+    print_human(res)
+    out = capsys.readouterr().out
+    assert "initialized" in out and "next: bugcorpus learn" in out
+
+
 def test_suppression_hides_matching_finding():
     from bugcorpus.scanner import suppressed_dict
 
