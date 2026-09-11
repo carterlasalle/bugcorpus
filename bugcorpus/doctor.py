@@ -72,6 +72,13 @@ def corpus_health(cwd: str | None = None) -> list[dict]:
     def warn(msg: str) -> None:
         issues.append({"level": "warning", "message": msg})
 
+    if not (store.root(cwd) / ".bugcorpus").is_dir():
+        return [
+            {
+                "level": "error",
+                "message": "not enrolled here: run `bugcorpus init` in this repository",
+            }
+        ]
     dids = store.list_detectors(cwd)
     base = store.cdir(cwd) / "detectors"
     if not dids and base.exists() and any(base.iterdir()):
