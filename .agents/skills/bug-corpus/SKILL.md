@@ -30,4 +30,16 @@ Found/fixed a bug, regression, root cause; asked to prevent a bug class, search 
 
 Do NOT learn typos, formatting, dependency bumps, or style opinions. Never gate a promoted detector on an LLM at scan time. Never create corpus entries from heuristics alone: `proposed` drafts from `learn --auto` carry no invariant until an agent refines them.
 
+## Sharing detectors (community exchange)
+<!-- trace:v1 id=doc.bugcorpus-skill-community work=WORK-BUG-ZJBDCZZ0 -->
+
+Detectors are portable. Everything needed is in the CLI — never explore the bugcorpus repo:
+
+  bugcorpus community export <detector-id> --output /tmp/share
+  bugcorpus community publish --base community
+  bugcorpus community list --ref community
+  bugcorpus community install --ref community --detector <id>
+
+Export bundles detector + fixtures + provenance; publish pushes your branch and opens a review PR against the `community` branch. That branch holds only shared detectors (never merge it into main). Imports always land as `shadow`; promote locally only after review.
+
 References: `references/ladder.md`, `references/fixtures.md`, `references/promotion.md`.

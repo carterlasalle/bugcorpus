@@ -2,6 +2,16 @@
 <!-- trace:v1 id=doc.bugcorpus-changelog work=WORK-BUG-ZJBDCZZ0 -->
 
 
+## 0.3.0 — 2026-09-11
+<!-- trace:v1 id=doc.bugcorpus-release-0-3-0 work=WORK-BUG-ZJBDCZZ0 -->
+
+Readable human CLI: every command has `--help` text and a sectioned
+renderer (no more raw JSON dumps), runnable next-steps sit alone on
+their own line, and `init` reports what it did. The canonical skill now
+documents the community exchange, so agents never need to explore the
+bugcorpus repo. No ANSI color, so readability never depends on theme
+contrast. `--json` unchanged.
+
 ## 0.2.0 — 2026-09-10
 <!-- trace:v1 id=doc.bugcorpus-release-0-2-0 work=WORK-BUG-ZJBDCZZ0 -->
 
