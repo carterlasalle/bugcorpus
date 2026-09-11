@@ -87,6 +87,56 @@ def test_doctor_flags_setup_problems(tmp_path):
     assert "family" in by_msg
 
 
+# trace:v1 id=test.bugcorpus-unenrolled.clean-errors verifies=REQ-BUG-8HPVNRVG
+def test_bug_commands_report_enrollment_not_errno(tmp_path, monkeypatch):
+    import argparse as _ap
+
+    from bugcorpus.cli import cmd_related, cmd_show, cmd_synthesize
+
+    monkeypatch.chdir(tmp_path)
+    for fn, args in (
+        (cmd_show, {"id": "BC-000001"}),
+        (cmd_related, {"id": "BC-000001"}),
+        (cmd_synthesize, {"id": "BC-000001", "family": "", "engine": None}),
+    ):
+        res = fn(_ap.Namespace(**args))
+        assert isinstance(res, dict), (fn, res)
+        assert res["ok"] is False and "not enrolled" in res["error"], (fn, res)
+
+
+# trace:v1 id=test.bugcorpus-unenrolled.unknown-id verifies=REQ-BUG-8HPVNRVG
+def test_show_unknown_id_names_the_bug(tmp_path, monkeypatch):
+    import argparse as _ap
+
+    from bugcorpus.cli import cmd_show
+
+    (tmp_path / ".bugcorpus").mkdir()
+    monkeypatch.chdir(tmp_path)
+    res = cmd_show(_ap.Namespace(id="BC-999999"))
+    assert res["ok"] is False and "BC-999999" in res["error"]
+
+
+# trace:v1 id=test.bugcorpus-hooks.no-tty-block verifies=REQ-BUG-8HPVNRVG
+def test_hooks_never_read_a_terminal(monkeypatch, capsys):
+    import argparse as _ap
+    import sys as _sys
+
+    from bugcorpus.cli import cmd_hooks, cmd_hooks_stop
+
+    # trace:exempt reason=test-helper
+    class _Tty:
+        def isatty(self):
+            return True
+
+        def read(self, *a):
+            raise AssertionError("hooks must not read a TTY")
+
+    monkeypatch.setattr(_sys, "stdin", _Tty())
+    cmd_hooks_stop()
+    assert cmd_hooks(_ap.Namespace(hcmd="post-tool-use")) is None
+    assert capsys.readouterr().out == ""
+
+
 # trace:v1 id=test.bugcorpus-unenrolled.no-glob verifies=REQ-BUG-8HPVNRVG
 def test_unenrolled_roots_never_glob(tmp_path):
     from bugcorpus.doctor import corpus_health

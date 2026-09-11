@@ -8,8 +8,12 @@ import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from typing import TYPE_CHECKING as _TC
 
 from . import store
+
+if _TC:
+    from .models import BugCase
 
 
 # trace:exempt reason=internal-detail
@@ -501,15 +505,33 @@ def capture_diff(before, after) -> dict:
         return {"original.diff": "", "fix.diff": ""}
 
 
+# trace:exempt reason=internal-detail
+def _load_bug_or_error(bid: str) -> dict | BugCase:
+    """Load a BugCase, or a clean error dict (never a raw OSError)."""
+    try:
+        return store.load_bug(None, bid)
+    except (OSError, ValueError):
+        if not (store.root() / ".bugcorpus").is_dir():
+            return {
+                "ok": False,
+                "error": "not enrolled here: run `bugcorpus init` in this repository",
+            }
+        return {"ok": False, "error": f"no such bug {bid} in this corpus"}
+
+
 # trace:exempt reason=thin-cli-dispatch
 def cmd_show(a):
-    return asdict(store.load_bug(None, a.id))
+    bug = _load_bug_or_error(a.id)
+    return asdict(bug) if not isinstance(bug, dict) else bug
 
 
 # trace:exempt reason=thin-cli-dispatch
 def cmd_related(a):
     from .searcher import related
 
+    missing = _load_bug_or_error(a.id)
+    if isinstance(missing, dict):
+        return missing
     return related(None, a.id)
 
 
@@ -540,6 +562,9 @@ def cmd_synthesize(a):
         # family-level: plan per member bug
         members = [b for b in store.list_bugs() if store.load_bug(None, b).family_id == a.family]
         return {"family": a.family, "plans": [str(write_plan(None, m)) for m in members]}
+    missing = _load_bug_or_error(target)
+    if isinstance(missing, dict):
+        return missing
     p = write_plan(None, target, engine=a.engine)
     return {"plan": str(p)}
 
@@ -884,14 +909,30 @@ def stop_signals(transcript: str) -> tuple[int, bool]:
     return min(hits, 9), done
 
 
-# trace:v1 id=impl.bugcorpus-cli.session-stop work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
-def cmd_hooks_stop() -> None:
-    """Advisory stop reminder when a session fixed a bug without learning it."""
+# trace:exempt reason=internal-detail
+def _hook_event() -> dict:
+    """Read the hook JSON event without ever blocking on a terminal.
+
+    Hooks run with piped stdin; invoked by hand on a TTY there is no event,
+    so return {} instead of blocking until Ctrl-D.
+    """
     import json as _json
 
     try:
-        raw = sys.stdin.read()
-        event = _json.loads(raw) if raw.strip() else {}
+        raw = "" if sys.stdin.isatty() else sys.stdin.read()
+    except OSError:
+        return {}
+    try:
+        return _json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        return {}
+
+
+# trace:v1 id=impl.bugcorpus-cli.session-stop work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_hooks_stop() -> None:
+    """Advisory stop reminder when a session fixed a bug without learning it."""
+    try:
+        event = _hook_event()
         tpath = event.get("transcript_path") or event.get("transcript") or ""
         if not tpath:
             return  # no session evidence available; stay silent, never guess
@@ -974,14 +1015,12 @@ def cmd_hooks(a):
         return cmd_hooks_stop()
     if a.hcmd == "session-start":
         return cmd_hooks_start()
-    import json as _json
 
     from .engines import load_manifest
     from .scanner import run_scan
 
     try:
-        raw = sys.stdin.read()
-        event = _json.loads(raw) if raw.strip() else {}
+        event = _hook_event()
         path = hook_file_from_event(event)
         if not path.endswith(".py"):
             return  # silent: nothing relevant to scan

@@ -151,7 +151,13 @@ def test_verify_single_case_and_detector():
 
 
 def test_cli_surfaces_errors_loudly():
-    assert run_cli(["show", "BC-999999"]) == 2
+    import argparse as _ap
+
+    from bugcorpus.cli import cmd_show
+
+    assert run_cli(["show", "BC-999999"]) != 0  # handled error: loud, non-zero
+    res = cmd_show(_ap.Namespace(id="BC-999999"))
+    assert res["ok"] is False and "BC-999999" in res["error"]  # clean, no Errno leak
     r = subprocess.run(
         ["uv", "run", "bugcorpus", "bogus-cmd"],
         capture_output=True,
