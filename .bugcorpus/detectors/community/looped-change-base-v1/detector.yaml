@@ -1,0 +1,18 @@
+id: looped-change-base-v1
+version: 1
+family: subprocess-fanout-in-loop
+engine: custom
+entrypoint: detect.py
+languages: [python]
+cost: cheap
+state: blocking
+catches: [BC-000002]
+requires_full_scan: false
+severity: medium
+confidence: high
+description: default_base() inside a loop body fans out git subprocesses per item.
+remediation: Hoist the change-base resolution out of the loop; thread it as a parameter.
+# Minimum semantic model: lexical loop containment of a default_base() call.
+# Explicitly NOT modeled: loop hotness, other expensive APIs, indirection
+# through helpers defined outside the loop (call-site loop still flags when
+# the call itself sits in a loop body).
