@@ -2,7 +2,14 @@
 <!-- trace:v1 id=doc.bugcorpus-changelog work=WORK-BUG-ZJBDCZZ0 -->
 
 
-## 0.3.0 — 2026-09-11
+## 0.3.1 — 2026-09-11
+<!-- trace:v1 id=doc.bugcorpus-release-0-3-1 work=WORK-BUG-ZJBDCZZ0 -->
+
+Hostile-environment hardening: doctor/scan never glob unenrolled roots,
+show/related/synthesize report missing records cleanly, hooks never block
+on a terminal. Three BugCases (BC-000003/4/5) registered with rung-0 test
+linkage, skill close-out rule, CI triggers on trace config.
+
 <!-- trace:v1 id=doc.bugcorpus-release-0-3-0 work=WORK-BUG-ZJBDCZZ0 -->
 
 Readable human CLI: every command has `--help` text and a sectioned
