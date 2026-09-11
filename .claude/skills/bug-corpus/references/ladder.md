@@ -1,7 +1,10 @@
 # Detector ladder — cheapest adequate engine wins
 <!-- trace:v1 id=doc.bugcorpus-ladder work=WORK-BUG-ZJBDCZZ0 -->
 
-0. existing (ruff/mypy/...) — record the rule, add a stay-enabled check
+0. existing (ruff/mypy/**pytest**) — record the rule or the regression test,
+   add a stay-enabled check. When the test itself is the detector, set
+   `source: regression-test` and `detector_status: tested` on the BugCase;
+   no static manifest is required and none should be faked.
 1. lexical — stable textual structure only (forbidden APIs)
 2. ast-grep — syntax-tree relationships
 3. semgrep — semantic structural patterns

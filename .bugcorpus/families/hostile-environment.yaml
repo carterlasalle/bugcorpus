@@ -1,0 +1,15 @@
+id: hostile-environment
+title: CLI assumes an enrolled repo or a piped context
+description: >-
+  Commands that touch the filesystem or stdin without first confirming
+  their context: globbing an unenrolled root, loading a record that is
+  not there, or reading a terminal that never sends EOF. Each hangs or
+  leaks internals instead of reporting the situation.
+invariant: Every filesystem or stdin touch runs behind a context guard —
+  enrollment for the corpus, TTY detection for hooks — and every failure
+  names the situation, never the syscall.
+semantic_signature:
+  kind: missing-context-guard
+  gates: [corpus-dir-present, record-exists, stdin-piped]
+members: [BC-000003, BC-000004, BC-000005]
+detectors: []

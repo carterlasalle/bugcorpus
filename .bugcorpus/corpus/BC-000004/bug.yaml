@@ -1,0 +1,49 @@
+id: BC-000004
+title: show/related/synthesize leak raw Errno on missing BugCase
+status: confirmed
+created_at: '2026-09-11T06:34:40+00:00'
+language: python
+subsystem: cli
+severity: medium
+confidence: high
+source: regression-test
+source_reference: tests/bugcorpus/test_setup.py::test_bug_commands_report_enrollment_not_errno
+bad_commit: a623b12^
+good_commit: a623b12
+symptom: >-
+  show/related/synthesize for a missing BugCase print a raw Errno 2
+  mentioning bug.yaml, leaking internals instead of naming the problem.
+user_impact: >-
+  users cannot tell whether the repo is unenrolled or the id is wrong;
+  agents misdiagnose missing enrollment as data corruption.
+root_cause: >-
+  cmd_show/cmd_related/cmd_synthesize let store.load_bug raise OSError
+  straight into the generic handler, which stringifies the exception.
+violated_invariant: >-
+  Missing records must surface as named errors (enrollment state or bug
+  id), never raw OSErrors.
+required_preconditions:
+- requested BugCase id has no bug.yaml under the resolved root
+triggering_operation: bugcorpus show (or related, synthesize) with an unknown id
+incorrect_behavior: raw Errno 2 path dump for a missing record
+correct_behavior: >-
+  a not-enrolled message outside a corpus, a no-such-bug message naming
+  the id inside one
+semantic_signature:
+  kind: unhandled-boundary-error
+  boundary: record-load
+  forbidden_use: raw-oserror-to-user
+relevant_symbols: [load_bug, cmd_show, cmd_related, cmd_synthesize]
+relevant_types: []
+relevant_calls: [store.load_bug]
+relevant_modules: [bugcorpus.cli, bugcorpus.store]
+control_flow_properties: [missing-record-guard]
+data_flow_properties: []
+state_transition_properties: []
+ordering_properties: []
+known_positive_examples: []
+known_negative_examples: []
+detector_status: tested
+detector_ids: []
+related_bug_cases: [BC-000003, BC-000005]
+family_id: hostile-environment

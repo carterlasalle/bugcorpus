@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generated_at": "2026-09-10T16:22:57+00:00",
+  "generated_at": "2026-09-11T06:37:34+00:00",
   "engines": [
     "existing",
     "lexical",
@@ -45,9 +45,72 @@
         "pysa": false,
         "custom": false
       }
+    },
+    "BC-000003": {
+      "title": "doctor/scan hang on unenrolled root",
+      "family": "hostile-environment",
+      "detectors": [],
+      "engines": {
+        "existing": false,
+        "lexical": false,
+        "ast-grep": false,
+        "semgrep": false,
+        "semgrep-taint": false,
+        "codeql": false,
+        "pysa": false,
+        "custom": false
+      }
+    },
+    "BC-000004": {
+      "title": "show/related/synthesize leak raw Errno on missing BugCase",
+      "family": "hostile-environment",
+      "detectors": [],
+      "engines": {
+        "existing": false,
+        "lexical": false,
+        "ast-grep": false,
+        "semgrep": false,
+        "semgrep-taint": false,
+        "codeql": false,
+        "pysa": false,
+        "custom": false
+      }
+    },
+    "BC-000005": {
+      "title": "hook entrypoints block on terminal stdin",
+      "family": "hostile-environment",
+      "detectors": [],
+      "engines": {
+        "existing": false,
+        "lexical": false,
+        "ast-grep": false,
+        "semgrep": false,
+        "semgrep-taint": false,
+        "codeql": false,
+        "pysa": false,
+        "custom": false
+      }
     }
   },
   "families": {
+    "hostile-environment": {
+      "title": "CLI assumes an enrolled repo or a piped context",
+      "members": {
+        "BC-000003": {
+          "caught": false,
+          "by": []
+        },
+        "BC-000004": {
+          "caught": false,
+          "by": []
+        },
+        "BC-000005": {
+          "caught": false,
+          "by": []
+        }
+      },
+      "detectors": []
+    },
     "stale-state-after-await": {
       "title": "State snapshot reused across an async suspension point without refresh",
       "members": {

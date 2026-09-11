@@ -27,6 +27,10 @@ Found/fixed a bug, regression, root cause; asked to prevent a bug class, search 
 9. Close the loop in the same session: `uv run bugcorpus promote --auto`,
    open a PR, set `gh pr merge --auto --merge` so green CI merges it.
    Never leave an unlearned fix behind — the stop hook drafts it as proposed.
+10. Every confirmed fix ends with a BugCase ID. When no static rule fits,
+    record rung 0: the pytest regression test is the detector
+    (`source: regression-test`, `detector_status: tested`). A fix with no
+    BugCase and no written reason is an unfinished fix.
 
 Do NOT learn typos, formatting, dependency bumps, or style opinions. Never gate a promoted detector on an LLM at scan time. Never create corpus entries from heuristics alone: `proposed` drafts from `learn --auto` carry no invariant until an agent refines them.
 

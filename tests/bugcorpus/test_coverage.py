@@ -15,7 +15,7 @@ def test_matrix_structure():
     assert matrix["version"] == 2
     assert matrix["engines"] == list(ENGINES)
     bugs = matrix["bugs"]
-    assert set(bugs) == {"BC-000001", "BC-000002"}
+    assert {"BC-000001", "BC-000002"} <= set(bugs) # corpus grows; pin presence, not size
     stale = bugs["BC-000001"]
     assert stale["engines"]["custom"] is True
     assert stale["engines"]["lexical"] is False

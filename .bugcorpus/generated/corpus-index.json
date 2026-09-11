@@ -28,9 +28,53 @@
       ],
       "subsystem": "expression-service",
       "invariant": "Code must never call eval/exec on a value that is not a static literal."
+    },
+    {
+      "id": "BC-000003",
+      "title": "doctor/scan hang on unenrolled root",
+      "family": "hostile-environment",
+      "detectors": [],
+      "severity": "medium",
+      "symbols": [
+        "collect_files",
+        "corpus_health",
+        "root"
+      ],
+      "subsystem": "cli-scanner",
+      "invariant": "File collection must never execute against a root without a corpus dir; unenrolled roots yield empty scope immediately."
+    },
+    {
+      "id": "BC-000004",
+      "title": "show/related/synthesize leak raw Errno on missing BugCase",
+      "family": "hostile-environment",
+      "detectors": [],
+      "severity": "medium",
+      "symbols": [
+        "load_bug",
+        "cmd_show",
+        "cmd_related",
+        "cmd_synthesize"
+      ],
+      "subsystem": "cli",
+      "invariant": "Missing records must surface as named errors (enrollment state or bug id), never raw OSErrors."
+    },
+    {
+      "id": "BC-000005",
+      "title": "hook entrypoints block on terminal stdin",
+      "family": "hostile-environment",
+      "detectors": [],
+      "severity": "medium",
+      "symbols": [
+        "_hook_event",
+        "cmd_hooks",
+        "cmd_hooks_stop"
+      ],
+      "subsystem": "cli-hooks",
+      "invariant": "Hook entrypoints must never block on terminal stdin; no piped event means no work, reported by instant silent exit 0."
     }
   ],
   "families": [
+    "hostile-environment",
     "stale-state-after-await",
     "unsafe-dynamic-execution"
   ]
