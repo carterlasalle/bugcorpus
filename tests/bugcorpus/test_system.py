@@ -259,6 +259,47 @@ def test_init_reports_adapters_and_next_steps(tmp_path, monkeypatch, capsys):
     assert "initialized" in out and "bugcorpus learn" in out and "bugcorpus verify" in out
 
 
+# trace:v1 id=test.bugcorpus-cli.human-coverage verifies=REQ-BUG-MKCEMW39
+def test_human_output_never_dumps_json_for_known_shapes(capsys):
+    from bugcorpus.cli import print_human
+
+    shapes = [
+        ({"ok": True, "problems": []}, "adapters: OK"),
+        ({"ok": True, "problems": ["x"]}, "problem: x"),
+        ([{"id": "BC-1", "title": "t", "family": "f", "score": 3}], "BC-1"),
+        ([{"sha": "abc", "subject": "s", "score": 1, "reasons": ["r"]}], "abc"),
+        (["fam-a"], "fam-a"),
+        ({"plan": "/tmp/p.yaml"}, "Wrote detector plan"),
+        ({"family": "f", "plans": ["/tmp/p.yaml"]}, "/tmp/p.yaml"),
+        ({"ok": True, "recorded": 2, "path": "/tmp/b.json"}, "Recorded 2"),
+        ({"findings": 2, "fingerprints": ["a"]}, "baseline --record"),
+        ({"ok": True, "entry": {"detector": "d", "reason": "r"}}, "Suppressed d"),
+        ({"ok": True, "id": "BC-9", "created": True, "diff_sha": "x"}, "BC-9"),
+        ({"ok": False, "reason": "clean worktree"}, "clean worktree"),
+        ({"ok": True, "url": "http://pr/1"}, "http://pr/1"),
+        ({"ok": False, "error": "boom"}, "boom"),
+        ({"ok": True, "promoted": ["d"], "skipped": {}}, "Promoted"),
+        ({"ok": True, "detector": "d", "from": "shadow", "to": "blocking"}, "blocking"),
+        (
+            {"status": "findings", "detail": "", "findings": []},
+            "detector run: findings",
+        ),
+        (
+            {"id": "m", "engine": "lexical", "state": "s", "family": "f", "catches": []},
+            "m [s, lexical]",
+        ),
+        (
+            {"id": "f", "title": "t", "invariant": "i", "semantic_signature": {}},
+            "f — t",
+        ),
+    ]
+    for payload, needle in shapes:
+        print_human(payload)
+        out = capsys.readouterr().out
+        assert not out.lstrip().startswith("{"), payload
+        assert needle in out, (payload, out)
+
+
 def test_suppression_hides_matching_finding():
     from bugcorpus.scanner import suppressed_dict
 

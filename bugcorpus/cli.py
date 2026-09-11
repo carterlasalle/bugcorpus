@@ -117,11 +117,7 @@ def print_human(data):
         if data.get("error"):
             print(f"  {data['error']}")
         return
-    if (
-        isinstance(data, dict)
-        and isinstance(data.get("detectors"), list)
-        and (not data["detectors"] or isinstance(data["detectors"][0], str))
-    ):
+    if isinstance(data, dict) and "ref" in data and isinstance(data.get("detectors"), list):
         print(f"Community [{data.get('ref', '?')}]: {len(data['detectors'])} detector(s)")
         for did in data["detectors"]:
             print(f"  {did}")
@@ -174,6 +170,9 @@ def print_human(data):
         print(f"family: {data.get('family_id') or '-'}")
         print(f"detectors: {', '.join(data.get('detector_ids', [])) or '-'}")
         return
+    if isinstance(data, list) and not data:
+        print("(none)")
+        return
     if isinstance(data, list) and data and isinstance(data[0], dict) and "engine" in data[0]:
         print(f"Detectors ({len(data)}):")
         for d in data:
@@ -182,6 +181,124 @@ def print_human(data):
                 f"  {d.get('id', '?')} [{d.get('state', '?')}, {d.get('engine', '?')}] "
                 f"— {d.get('family', '?')} (catches {catches})"
             )
+        return
+    if isinstance(data, list) and data and isinstance(data[0], dict) and "sha" in data[0]:
+        print(f"History candidates ({len(data)}):")
+        for m in data:
+            print(
+                f"  {m.get('sha', '?')[:12]} (score {m.get('score', '?')}) {m.get('subject', '')}"
+            )
+            if m.get("reasons"):
+                print(f"    because: {', '.join(m['reasons'])}")
+        print("\nReview candidates, then record the real bugs:")
+        print("  bugcorpus learn")
+        return
+    if isinstance(data, list) and data and isinstance(data[0], dict) and "score" in data[0]:
+        print(f"Matches ({len(data)}):")
+        for m in data:
+            print(f"  {m.get('id', '?')} (score {m.get('score', '?')}) — {m.get('title', '')}")
+            if m.get("invariant"):
+                print(f"    invariant: {m['invariant'][:160]}")
+        return
+    if isinstance(data, list) and data and isinstance(data[0], str):
+        print(f"Families ({len(data)}):")
+        for f in data:
+            print(f"  {f}")
+        return
+    if isinstance(data, list) and data and isinstance(data[0], dict) and "reason" in data[0]:
+        print(f"Suppressions ({len(data)}):")
+        for s in data:
+            print(f"  {s.get('detector', '?')}: {s.get('reason', '')}")
+        return
+    if isinstance(data, dict) and "skills" in data and "files" in data:
+        print("adapters: " + ("OK" if data.get("ok") else "FAIL"))
+        print(f"  {len(data.get('files', []))} files (via {data.get('bin', '?')})")
+        for p in data.get("problems", []):
+            print(f"  problem: {p}")
+        for n in data.get("notes", [])[:8]:
+            print(f"  - {n}")
+        return
+    if isinstance(data, dict) and "engine" in data and "catches" in data and "id" in data:
+        print(f"{data.get('id', '?')} [{data.get('state', '?')}, {data.get('engine', '?')}]")
+        print(f"family: {data.get('family', '-')}")
+        print(f"catches: {', '.join(data.get('catches', [])) or '-'}")
+        if data.get("description"):
+            print(data["description"])
+        return
+    if isinstance(data, dict) and "status" in data and "findings" in data and "detail" in data:
+        print(f"detector run: {data['status']}")
+        if data.get("detail"):
+            print(f"  {data['detail'][:200]}")
+        for f in data["findings"][:20]:
+            print(f"  {f.get('path', '')}:{f.get('start_line', '')} {f.get('message', '')[:160]}")
+        return
+    if isinstance(data, dict) and set(data) <= {"ok", "promoted", "skipped"}:
+        if data.get("promoted"):
+            print("Promoted to blocking: " + ", ".join(data["promoted"]))
+        else:
+            print("Nothing promoted.")
+        for did, why in data.get("skipped", {}).items():
+            print(f"  {did}: {why}")
+        return
+    if isinstance(data, dict) and "detector" in data and "to" in data and "ok" in data:
+        if data["ok"]:
+            print(f"Detector {data['detector']}: {data.get('from', '?')} → {data['to']}")
+        else:
+            print(f"Promotion refused: {data.get('error', '')}")
+        return
+    if isinstance(data, dict) and set(data) == {"plan"}:
+        print(f"Wrote detector plan to {data['plan']}")
+        print("\nNext step:")
+        print("  bugcorpus verify")
+        return
+    if isinstance(data, dict) and "family" in data and "plans" in data:
+        print(f"Wrote {len(data['plans'])} plan(s) for family {data['family']}:")
+        for p in data["plans"]:
+            print(f"  {p}")
+        return
+    if isinstance(data, dict) and "recorded" in data and "path" in data:
+        print(f"Recorded {data['recorded']} finding(s) as baseline in {data['path']}")
+        return
+    if isinstance(data, dict) and "fingerprints" in data and "findings" in data:
+        print(f"{data['findings']} findings ({len(data['fingerprints'])} fingerprints).")
+        print("To accept these as tracked debt, run:")
+        print("  bugcorpus baseline --record")
+        return
+    if isinstance(data, dict) and "entry" in data and "ok" in data:
+        e = data["entry"]
+        print(f"Suppressed {e.get('detector', '?')}: {e.get('reason', '')}")
+        return
+    if isinstance(data, dict) and "diff_sha" in data:
+        if data.get("created"):
+            print(f"Captured this session's diff as proposed {data.get('id')}.")
+            print("It has no invariant yet. Next step:")
+            print("  bugcorpus learn")
+            print(f"    refine {data.get('id')} into a detector")
+        else:
+            print(f"{data.get('id')} already proposes these changes.")
+            print("Next step:")
+            print("  bugcorpus learn")
+        return
+    if isinstance(data, dict) and "url" in data and "ok" in data:
+        if data["ok"]:
+            print(f"Opened for review: {data['url']}")
+        else:
+            print(f"Publish failed: {data.get('error', '')}")
+        return
+    if isinstance(data, dict) and "semantic_signature" in data and "title" in data:
+        print(f"{data.get('id', '?')} — {data.get('title', '')}")
+        if data.get("invariant"):
+            print(f"invariant: {data['invariant']}")
+        if data.get("members"):
+            print(f"members: {', '.join(data['members'])}")
+        if data.get("detectors"):
+            print(f"detectors: {', '.join(data['detectors'])}")
+        return
+    if isinstance(data, dict) and not data.get("ok", True) and "reason" in data:
+        print(data["reason"])
+        return
+    if isinstance(data, dict) and not data.get("ok", True) and "error" in data:
+        print(f"error: {data['error']}")
         return
     print(json.dumps(data, indent=2, default=str))
 
