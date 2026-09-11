@@ -87,6 +87,18 @@ def test_doctor_flags_setup_problems(tmp_path):
     assert "family" in by_msg
 
 
+# trace:v1 id=test.bugcorpus-unenrolled.no-glob verifies=REQ-BUG-8HPVNRVG
+def test_unenrolled_roots_never_glob(tmp_path):
+    from bugcorpus.doctor import corpus_health
+    from bugcorpus.scanner import collect_files
+
+    (tmp_path / "big" / "nested").mkdir(parents=True)
+    (tmp_path / "big" / "nested" / "a.py").write_text("x = 1\n")
+    assert collect_files(tmp_path, {}) == []  # no .bugcorpus: never walk the tree
+    issues = corpus_health(str(tmp_path))
+    assert any("not enrolled" in i["message"] for i in issues)
+
+
 def test_doctor_clean_on_healthy_repo():
     from bugcorpus.doctor import corpus_health
 

@@ -45,6 +45,8 @@ def config(cwd=None) -> dict:
 
 # trace:exempt reason=internal-detail
 def collect_files(repo: Path, cfg: dict) -> list[str]:
+    if not (repo / ".bugcorpus").is_dir():
+        return []  # unenrolled root: never glob an arbitrary tree (e.g. $HOME)
     inc = cfg.get("scan", {}).get("include", ["**/*.py"])
     exc = set(cfg.get("scan", {}).get("exclude", [".venv/**", ".git/**", ".bugcorpus/cache/**"]))
     files = []

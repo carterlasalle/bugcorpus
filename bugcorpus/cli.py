@@ -152,7 +152,11 @@ def print_human(data):
         if data.get("corpus"):
             print("corpus issues:")
             for c in data["corpus"]:
-                print(f"  - {c}")
+                print(
+                    f"  {c.get('level', '?')}: {c.get('message', c)}"
+                    if isinstance(c, dict)
+                    else f"  - {c}"
+                )
         else:
             print("corpus: clean")
         if data.get("recommendation"):
