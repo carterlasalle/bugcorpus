@@ -256,7 +256,7 @@ def test_init_reports_adapters_and_next_steps(tmp_path, monkeypatch, capsys):
     assert res["ok"] and res["files"] > 0 and isinstance(res["notes"], list)
     print_human(res)
     out = capsys.readouterr().out
-    assert "initialized" in out and "next: bugcorpus learn" in out
+    assert "initialized" in out and "bugcorpus learn" in out and "bugcorpus verify" in out
 
 
 def test_suppression_hides_matching_finding():

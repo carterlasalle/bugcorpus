@@ -21,6 +21,22 @@ def _out(data, as_json: bool):
 
 
 # trace:exempt reason=internal-detail
+def _run_lines(steps):
+    """Render steps so runnable commands sit alone on their own line.
+
+    Explanations go above in plain prose; never a trailing `# comment`,
+    which renders dim in most themes and gets lost on low contrast.
+    """
+    for s in steps:
+        if s.startswith("run: "):
+            print(f"  {s[len('run: ') :]}")
+        elif s.startswith("run "):
+            print(f"  bugcorpus {s[len('run ') :]}")
+        else:
+            print(f"  - {s}")
+
+
+# trace:exempt reason=internal-detail
 def print_human(data):
     if isinstance(data, dict) and "findings" in data and "counts" in data:
         n_det = len(data.get("detectors", []))
@@ -29,22 +45,20 @@ def print_human(data):
             n = len(r.get("findings", []))
             print(
                 f"  {r.get('detector', '?')} [{r.get('state', '?')}]: "
-                f"{r.get('status', '?')}" + (f", {n} finding(s)" if n else "")
+                + ("no findings" if not n else f"{n} finding(s)")
             )
         if data.get("blocking_failed"):
-            print("gate: FAIL (new blocking findings or detector errors)")
+            print("gate: FAIL — new blocking findings or detector errors (see above)")
         else:
-            print(
-                "gate: PASS (only blocking detectors gate; "
-                "warning/shadow findings never fail the build)"
-            )
+            print("gate: PASS — no new blocking findings")
         if data.get("new_findings"):
-            print("\nNEW FINDINGS (not in baseline)")
+            print("\nFindings not in baseline:")
             for f in data["new_findings"][:20]:
                 print(
-                    f"{f.get('bug_family', '')} {f.get('detector_id', '')} "
-                    f"{f.get('path', '')}:{f.get('start_line', '')} {f.get('message', '')[:100]}"
+                    f"  [{f.get('bug_family', '')}] {f.get('detector_id', '')} "
+                    f"{f.get('path', '')}:{f.get('start_line', '')}"
                 )
+                print(f"    {f.get('message', '')[:160]}")
         return
     if isinstance(data, dict) and data.get("version") == 2 and "bugs" in data:
         from .coverage import render_human
@@ -56,19 +70,52 @@ def print_human(data):
         print(f"{data.get('bug_count', 0)} bugs, {data.get('detector_count', 0)} detectors indexed")
         print("adapters: " + ("OK" if data.get("ok") else "FAIL"))
         for note in data.get("notes", []):
-            print(f"note: {note}")
+            print(f"  - {note}")
         return
     if isinstance(data, dict) and "msg" in data and "bin" in data and "files" in data:
         print(data["msg"])
-        print(
-            f"adapters: {'OK' if data.get('ok') else 'FAIL'} ({data['files']} files, via {data['bin']})"
-        )
+        status = "OK" if data.get("ok") else "FAIL"
+        print(f"adapters: {status} — {data['files']} files (via {data['bin']})")
         for p in data.get("problems", []):
             print(f"  problem: {p}")
-        for n in data.get("notes", [])[:5]:
-            print(f"  note: {n}")
-        print("next: bugcorpus learn  # record your first fixed bug as a BugCase")
-        print("then: bugcorpus verify # prove its detector catches it")
+        for n in data.get("notes", []):
+            print(f"  - {n}")
+        print("\nNext steps:")
+        print("  bugcorpus learn")
+        print("    record your first fixed bug as a BugCase")
+        print("  bugcorpus verify")
+        print("    prove its detector catches it")
+        return
+    if isinstance(data, dict) and "next_steps" in data and "id" in data:
+        print(f"Draft {data['id']} recorded.")
+        print("\nNext steps:")
+        _run_lines(data["next_steps"])
+        return
+    if isinstance(data, dict) and "installed" in data:
+        if data.get("installed"):
+            print("Installed: " + ", ".join(data["installed"]))
+        if data.get("up_to_date"):
+            print("Up to date: " + ", ".join(data["up_to_date"]))
+        if not data.get("installed") and not data.get("up_to_date"):
+            print("Nothing to install.")
+        for f in data.get("failed", []):
+            print(f"  FAILED: {f.get('error', f)}")
+        return
+    if isinstance(data, dict) and "verify_ok" in data and "id" in data:
+        verdict = "verified" if data["verify_ok"] else "needs work (draft)"
+        print(f"Imported {data['id']} as {data.get('state', '?')} — {verdict}.")
+        if data.get("error"):
+            print(f"  {data['error']}")
+        return
+    if isinstance(data, dict) and "fixtures" in data and "path" in data:
+        print(f"Exported {data.get('id', '?')} ({data['fixtures']} fixtures) to {data['path']}")
+        return
+    if isinstance(data, dict) and set(data) <= {"ok", "problems", "error"}:
+        print("adapters: " + ("OK" if data.get("ok") else "FAIL"))
+        for p in data.get("problems", []):
+            print(f"  problem: {p}")
+        if data.get("error"):
+            print(f"  {data['error']}")
         return
     if (
         isinstance(data, dict)
@@ -85,13 +132,56 @@ def print_human(data):
         print("verify: " + ("OK" if data["ok"] else "FAIL"))
         for r in data["detectors"]:
             m = r.get("metrics", {})
+            fps = m.get("false_positives", [])
+            fp_txt = "none" if not fps else ", ".join(fps)
             print(
-                f"  {r['detector']}: {'ok' if r['ok'] else 'FAIL'} "
-                f"recall={m.get('recall', '?')} adv_recall={m.get('adv_recall', '?')} "
-                f"fp={m.get('false_positives', [])} {r.get('error', '')}"
+                f"  {r['detector']}: {'pass' if r['ok'] else 'FAIL'} "
+                f"(recall {m.get('recall', '?')}, "
+                f"adversarial recall {m.get('adv_recall', '?')}, "
+                f"false positives: {fp_txt}) {r.get('error', '')}".rstrip()
             )
         for e in data.get("schema_errors", []):
             print(f"  schema: {e}")
+        return
+    if isinstance(data, dict) and "tools" in data and "engines" in data:
+        missing = [t for t in data["tools"] if not t.get("available")]
+        if missing:
+            print(f"doctor: {len(missing)} optional tool(s) missing")
+            for t in missing:
+                print(f"  {t['tool']}: {t.get('install', 'no install hint')}")
+        else:
+            print("doctor: all tools available")
+        ready = [k for k, v in data["engines"].items() if v]
+        print("engines ready: " + (", ".join(sorted(ready)) or "none"))
+        if data.get("corpus"):
+            print("corpus issues:")
+            for c in data["corpus"]:
+                print(f"  - {c}")
+        else:
+            print("corpus: clean")
+        if data.get("recommendation"):
+            print(data["recommendation"])
+        return
+    if isinstance(data, dict) and data.get("id", "").startswith("BC-") and "title" in data:
+        print(f"{data['id']} — {data.get('title', '')} [{data.get('status', '?')}]")
+        for label, key in (
+            ("symptom", "symptom"),
+            ("root cause", "root_cause"),
+            ("invariant", "violated_invariant"),
+        ):
+            if data.get(key):
+                print(f"{label}: {data[key]}")
+        print(f"family: {data.get('family_id') or '-'}")
+        print(f"detectors: {', '.join(data.get('detector_ids', [])) or '-'}")
+        return
+    if isinstance(data, list) and data and isinstance(data[0], dict) and "engine" in data[0]:
+        print(f"Detectors ({len(data)}):")
+        for d in data:
+            catches = ", ".join(d.get("catches", [])) or "-"
+            print(
+                f"  {d.get('id', '?')} [{d.get('state', '?')}, {d.get('engine', '?')}] "
+                f"— {d.get('family', '?')} (catches {catches})"
+            )
         return
     print(json.dumps(data, indent=2, default=str))
 
@@ -805,17 +895,20 @@ def cmd_hooks(a):
 
 # trace:exempt reason=internal-detail
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="bugcorpus", description="Bug Corpus")
+    p = argparse.ArgumentParser(
+        prog="bugcorpus",
+        description="Bug Corpus: turn fixed bugs into permanent detectors.",
+    )
     p.add_argument("--json", action="store_true", help="machine-readable output")
     p.add_argument("--cwd", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("init")
+    s = sub.add_parser("init", help="set up .bugcorpus scaffold plus agent adapters")
     s.add_argument("path", nargs="?", default=".")
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_init)
 
-    s = sub.add_parser("learn")
+    s = sub.add_parser("learn", help="record a fixed bug as a BugCase draft")
     s.add_argument("--title", default="")
     s.add_argument("-m", "--message", default="")
     s.add_argument("--before", default="")
@@ -829,24 +922,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s.set_defaults(fn=cmd_learn)
 
-    s = sub.add_parser("show")
+    s = sub.add_parser("show", help="show one BugCase")
     s.add_argument("id")
     s.set_defaults(fn=cmd_show)
-    s = sub.add_parser("related")
+    s = sub.add_parser("related", help="find bugs related to one BugCase")
     s.add_argument("id")
     s.set_defaults(fn=cmd_related)
-    s = sub.add_parser("search")
+    s = sub.add_parser("search", help="search bug cases, invariants, and families")
     s.add_argument("query")
     s.set_defaults(fn=cmd_search)
 
-    s = sub.add_parser("family")
+    s = sub.add_parser("family", help="list or show bug families")
     fs = s.add_subparsers(dest="fcmd", required=True)
     f = fs.add_parser("list")
     f.set_defaults(fn=cmd_family_list)
     f = fs.add_parser("show")
     f.add_argument("id")
     f.set_defaults(fn=cmd_family_show)
-    s = sub.add_parser("promote")
+    s = sub.add_parser("promote", help="advance a detector to a stronger state")
     s.add_argument("id", nargs="?")
     s.add_argument(
         "--to",
@@ -859,21 +952,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="promote every eligible shadow/warning detector to blocking",
     )
     s.set_defaults(fn=cmd_promote)
-    s = sub.add_parser("synthesize")
+    s = sub.add_parser("synthesize", help="write a detector plan for a BugCase")
     s.add_argument("id", nargs="?")
     s.add_argument("--family", default="")
     s.add_argument("--engine", default=None)
     s.set_defaults(fn=cmd_synthesize)
 
-    s = sub.add_parser("verify")
+    s = sub.add_parser("verify", help="prove detectors catch their fixtures")
     s.add_argument("id", nargs="?")
     s.add_argument("--detector", default=None)
     s.set_defaults(fn=cmd_verify)
 
-    s = sub.add_parser("coverage")
+    s = sub.add_parser("coverage", help="render the bugs-by-engines matrix")
     s.set_defaults(fn=cmd_coverage)
 
-    s = sub.add_parser("scan")
+    s = sub.add_parser("scan", help="run promoted detectors over the repo")
     s.add_argument("--profile", default="pr", choices=["fast", "pr", "full"])
     s.add_argument("--all", action="store_true")
     s.add_argument("--changed", action="store_true")
@@ -881,7 +974,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--detector", action="append", default=None)
     s.set_defaults(fn=cmd_scan)
 
-    s = sub.add_parser("community")
+    s = sub.add_parser("community", help="share and install community detectors")
     cs = s.add_subparsers(dest="ccmd", required=True)
     c = cs.add_parser("export")
     c.add_argument("id")
@@ -905,7 +998,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--body", default="")
     c.set_defaults(fn=cmd_community)
 
-    s = sub.add_parser("detector")
+    s = sub.add_parser("detector", help="list, show, or run one detector")
     ds = s.add_subparsers(dest="dcmd", required=True)
     d = ds.add_parser("list")
     d.set_defaults(fn=cmd_detector_list)
@@ -917,11 +1010,11 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("files", nargs="*")
     d.set_defaults(fn=cmd_detector_run)
 
-    s = sub.add_parser("baseline")
+    s = sub.add_parser("baseline", help="list findings or record them as tracked debt")
     s.add_argument("--record", action="store_true", help="record current findings as tracked debt")
     s.set_defaults(fn=cmd_baseline)
 
-    s = sub.add_parser("suppress")
+    s = sub.add_parser("suppress", help="suppress a finding or list suppressions")
     s.add_argument("detector", nargs="?")
     s.add_argument("--fingerprint", default="")
     s.add_argument("--path", default="")
@@ -930,7 +1023,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--list", dest="list_only", action="store_true")
     s.set_defaults(fn=cmd_suppress)
 
-    s = sub.add_parser("doctor")
+    s = sub.add_parser("doctor", help="check tool capabilities and corpus health")
     s.set_defaults(fn=cmd_doctor)
 
     s = sub.add_parser("adapters")
@@ -949,22 +1042,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     a.set_defaults(fn=cmd_adapters)
 
-    s = sub.add_parser("update")
+    s = sub.add_parser("update", help="refresh adapters and indexes to this version")
     s.set_defaults(fn=cmd_update)
 
-    s = sub.add_parser("export")
+    s = sub.add_parser("export", help="export scan findings (sarif)")
     s.add_argument("format", nargs="?", default="sarif")
     s.add_argument("--profile", default="full")
     s.set_defaults(fn=cmd_export)
 
-    s = sub.add_parser("mine-history")
+    s = sub.add_parser("mine-history", help="propose BugCases from git history")
     s.add_argument("--since", default=None)
     s.add_argument("--limit", type=int, default=20)
     s.set_defaults(fn=cmd_mine)
-    s = sub.add_parser("mcp")
+    s = sub.add_parser("mcp", help="serve the MCP interface on stdio")
     s.set_defaults(fn=cmd_mcp)
 
-    s = sub.add_parser("hooks")
+    s = sub.add_parser("hooks", help="agent hook entrypoints (advisory, always exit 0)")
     hs = s.add_subparsers(dest="hcmd", required=True)
     h = hs.add_parser("post-tool-use")
     h.set_defaults(fn=cmd_hooks)
