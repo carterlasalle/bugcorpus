@@ -13,8 +13,9 @@
 // @earendil-works/pi-coding-agent. The extension runtime never type-checks
 // this file.
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { basename } from "node:path";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 // trace:v1 id=impl.omp.trace-gate work=WORK-TL-001
@@ -40,6 +41,7 @@ export default function hook(pi: ExtensionAPI): void {
   // nothing. Stale locks from dead PIDs are swept (signal 0); a lock for
   // a recycled PID belonging to an unrelated live process is harmless
   // (it names a pid nobody claims against).
+  let claimedHere = false;
   // trace:v1 id=impl.omp.gate-election work=WORK-p0-remediation-passive-activation-remind-first-enforcement-branch-safe-identity-safe-bootstrap
   const claimPrimary = (): boolean => {
     try {
@@ -51,6 +53,16 @@ export default function hook(pi: ExtensionAPI): void {
           if (!m || Number(m[1]) === process.pid) continue;
           try {
             process.kill(Number(m[1]), 0);
+            // Alive pid, but a lock older than a day cannot belong to a
+            // live OMP session holding this HOME: the pid was recycled by
+            // an unrelated process after the claimant died. Reclaim it;
+            // worst case the loser re-claims next firing (cheap, rare).
+            try {
+              const ageMs = Date.now() - statSync(`${dir}/${f}`).mtimeMs;
+              if (ageMs > 24 * 3600 * 1000) unlinkSync(`${dir}/${f}`);
+            } catch {
+              // sweep is hygiene, not correctness
+            }
           } catch (e) {
             const gone =
               e !== null && typeof e === "object" && "code" in e && e.code === "ESRCH";
@@ -66,11 +78,23 @@ export default function hook(pi: ExtensionAPI): void {
       } catch {
         // sweep is hygiene, not correctness
       }
+      if (claimedHere) return false; // sibling copy in this process won
       try {
         writeFileSync(`${dir}/${process.pid}.lock`, "tracelayer-gate", { flag: "wx" });
+        claimedHere = true;
         return true;
       } catch {
-        return false; // another loaded copy in this process claimed first
+        // EEXIST on our own pid file without a sibling claim means a stale
+        // lock from a dead previous incarnation (sweep skips own pid):
+        // reclaim once, then honor a second failure as a live sibling.
+        try {
+          unlinkSync(`${dir}/${process.pid}.lock`);
+          writeFileSync(`${dir}/${process.pid}.lock`, "tracelayer-gate", { flag: "wx" });
+          claimedHere = true;
+          return true;
+        } catch {
+          return false;
+        }
       }
     } catch {
       return true; // FS unavailable: proceed rather than disable the gate
@@ -82,7 +106,17 @@ export default function hook(pi: ExtensionAPI): void {
   // 2026-09-09), so 60s means "hung", never "slow". Without it a hung hook
   // hangs the tool call until the user aborts the request.
   // trace:exempt reason=internal-helper
-  const GATE_TIMEOUT_MS = 60_000;
+  // Request-path tripwire (pre/post mutation): 4s. Fresh-log receipt
+  // 2026-09-10: p95 pre/post ≈ 2s, observed request abort ≈ 5.4s. A hook
+  // that cannot answer in 4s is down; fail open loudly (obligations persist
+  // to Stop/CI) rather than hang the request into an abort.
+  // Completion (stop) keeps a 25s budget, deliberately under OMP's 30s
+  // handler kill (receipt 2026-09-13: a 60s stop surfaced only as
+  // "handler timed out after 30000ms" with no reason). Ending a session
+  // may wait, but the gate must report first — a slow stop still
+  // fail-closes, now with the honest reason instead of a raw kill.
+  const GATE_TIMEOUT_MS = 4_000;
+  const STOP_TIMEOUT_MS = 25_000;
 
   // Telemetry: one JSONL record per firing (success, deny, crash, timeout)
   // into ~/.trace/var/timing.log — the same file `trace timing` reads.
@@ -92,12 +126,19 @@ export default function hook(pi: ExtensionAPI): void {
     try {
       const dir = `${homedir()}/.trace/var`;
       mkdirSync(dir, { recursive: true });
+      let repo: string | undefined;
+      try {
+        repo = basename(process.cwd());
+      } catch {
+        repo = undefined;
+      }
       appendFileSync(
         `${dir}/timing.log`,
         JSON.stringify({
           ts: new Date().toISOString(),
           source: "omp-gate",
           event,
+          repo,
           duration_ms: Math.round(durationMs * 10) / 10,
           ...extra,
         }) + "\n",
@@ -113,10 +154,27 @@ export default function hook(pi: ExtensionAPI): void {
   // copies). Handlers are async and OMP awaits them, so awaiting here
   // yields the loop while the hook runs. stdin is written explicitly
   // (Bun's sync spawn ignores `input`; node async spawn takes it).
+  // Transport binary: every other harness invokes the `trace` console
+  // script directly; `uv run` adds ~200-260ms resolver overhead per firing
+  // and SIGKILL then reaps the uv parent while the real trace grandchild
+  // survives. TRACE_GATE_BIN overrides (dev skew: checkout vs installed).
+  // trace:exempt reason=internal-detail
+  const TRACE_BIN: string[] = (() => {
+    const override = process.env.TRACE_GATE_BIN;
+    if (typeof override === "string" && override) return [override];
+    return ["trace"];
+  })();
   // trace:v1 id=impl.omp.gate-transport work=WORK-TL-005 satisfies=REQ-mutation-enforcement-is-reminder-first-by-default
   const run = (
     args: string[],
     input: string,
+  ): Promise<{ code: number; out: string; err: string; transportOk: boolean; timedOut: boolean }> =>
+    runWith(args, input, GATE_TIMEOUT_MS);
+  // trace:exempt reason=internal-detail
+  const runWith = (
+    args: string[],
+    input: string,
+    budgetMs: number,
   ): Promise<{ code: number; out: string; err: string; transportOk: boolean; timedOut: boolean }> =>
     new Promise((resolve) => {
       let out = "";
@@ -135,9 +193,14 @@ export default function hook(pi: ExtensionAPI): void {
         clearTimeout(timer);
         resolve(r);
       };
-      let child: ReturnType<typeof spawn> | undefined;
+      // Direct `trace` spawn: `uv run` adds ~200-260ms resolver overhead
+      // per firing, and SIGKILL then reaps the uv parent while the real
+      // trace grandchild survives. A missing binary surfaces as an async
+      // ENOENT error below and fails open (logged), same as any transport
+      // failure — no second spawn path to maintain.
+      let child: ReturnType<typeof spawn>;
       try {
-        child = spawn("uv", ["run", "trace", ...args]);
+        child = spawn(TRACE_BIN[0], [...TRACE_BIN.slice(1), ...args]);
       } catch {
         finish({ code: -1, out: "", err: "spawn threw", transportOk: false, timedOut: false });
         return;
@@ -151,14 +214,15 @@ export default function hook(pi: ExtensionAPI): void {
         finish({
           code: -1,
           out,
-          err: `${err}\ngate timeout after ${GATE_TIMEOUT_MS / 1000}s`.slice(-500),
+          err: `${err}\ngate timeout after ${budgetMs / 1000}s`.slice(-500),
           transportOk: false,
           timedOut: true,
         });
-      }, GATE_TIMEOUT_MS);
+      }, budgetMs);
       const proc = child;
       proc.stdout?.on("data", (d: unknown) => {
         out += String(d);
+        if (out.length > 65536) out = out.slice(-65536);
       });
       proc.stderr?.on("data", (d: unknown) => {
         err += String(d);
@@ -255,10 +319,15 @@ export default function hook(pi: ExtensionAPI): void {
         transportOk: res.transportOk,
         error: res.err || undefined,
         outcome: "allow-on-error",
+        path: path || undefined,
       });
       return;
     }
-    logGate("pre-mutation", ms, { code: res.code, outcome: res.code === 2 ? "deny" : "allow" });
+    logGate("pre-mutation", ms, {
+      code: res.code,
+      outcome: res.code === 2 ? "deny" : "allow",
+      path: path || undefined,
+    });
     if (res.code !== 2) return;
     let reason = "trace policy blocks this edit";
     try {
@@ -280,11 +349,17 @@ export default function hook(pi: ExtensionAPI): void {
     const opaque = event.toolName === "bash" || event.toolName === "patch";
     if (event.toolName !== "edit" && event.toolName !== "write" && !opaque) return;
     let body;
+    let loggedPath: string | undefined;
     if (opaque) {
-      body = JSON.stringify({ session_id: sessionId(ctx) });
+      // Pass the shell command (truncated, matched server-side, never
+      // echoed) so the hook can coach test-run evidence ingest.
+      const rawInput = (event.input ?? {}) as Record<string, unknown>;
+      const cmd = typeof rawInput.command === "string" ? rawInput.command.slice(0, 500) : undefined;
+      body = JSON.stringify({ session_id: sessionId(ctx), ...(cmd ? { command: cmd } : {}) });
     } else {
       const { path } = fileInfo(event.input);
       if (!path) return;
+      loggedPath = path;
       body = JSON.stringify({ path, session_id: sessionId(ctx) });
     }
     const start = performance.now();
@@ -296,10 +371,26 @@ export default function hook(pi: ExtensionAPI): void {
         timedOut: res.timedOut,
         error: res.err || undefined,
         outcome: "hook-error",
+        path: loggedPath,
       });
+      // Surface the failure to the model (append-only, never replacing the
+      // real result): silent coaching drops leave the agent unaware that
+      // obligations may be pending. The write already happened; Stop/CI
+      // still enforce.
+      if (Array.isArray(event.content)) {
+        return {
+          content: [
+            ...event.content,
+            {
+              type: "text",
+              text: `\n\n<TraceLayer>\nPost-mutation check failed to run (exit ${res.code}${res.timedOut ? ", timed out" : ""}); obligations may be pending — run \`trace verify\` before completing.\n</TraceLayer>`,
+            },
+          ],
+        };
+      }
       return;
     }
-    logGate("post-mutation", ms, { code: 0, outcome: "coached" });
+    logGate("post-mutation", ms, { code: 0, outcome: "coached", path: loggedPath });
     try {
       const d = JSON.parse(res.out) as { output?: string };
       if (typeof d.output !== "string" || !d.output) return;
@@ -328,7 +419,7 @@ export default function hook(pi: ExtensionAPI): void {
   pi.on("session_stop", async (event, _ctx) => {
     const body = JSON.stringify({ lifecycle: "wip", session_id: event.session_id });
     const start = performance.now();
-    const res = await run(["hook", "stop", "--format", "json"], body);
+    const res = await runWith(["hook", "stop", "--format", "json"], body, STOP_TIMEOUT_MS);
     const ms = performance.now() - start;
     if (res.code === 0) {
       logGate("stop", ms, { code: 0, outcome: "allow" });
@@ -356,10 +447,11 @@ export default function hook(pi: ExtensionAPI): void {
       error: res.err || undefined,
       outcome: "block-on-error",
     });
-    const why = res.timedOut ? `timed out after ${GATE_TIMEOUT_MS / 1000}s` : `failed to run (exit ${res.code})`;
+    const why = res.timedOut ? `timed out after ${STOP_TIMEOUT_MS / 1000}s` : `failed to run (exit ${res.code})`;
     const reason =
       `trace stop hook ${why}: completion is blocked because obligations could not be verified — ` +
-      `not because a violation was found.${res.err ? `\n\nHook stderr: ${res.err}` : ""}`;
+      `not because a violation was found. Run \`trace index --all\` and retry; ` +
+      `if it persists, the hook itself is down and obligations stay unverified.${res.err ? `\n\nHook stderr: ${res.err}` : ""}`;
     console.error(`trace gate: ${reason}`);
     return { decision: "block", reason };
   });
