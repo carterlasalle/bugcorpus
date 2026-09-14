@@ -78,9 +78,10 @@ export default function bugCorpus(pi: ExtensionAPI): void {
   const notify = (
     ctx: { ui?: { notify?: (text: string, level?: string) => void } },
     text: string,
+    level?: string,
   ): void => {
     try {
-      ctx.ui?.notify?.(text, "info");
+      ctx.ui?.notify?.(text, level ?? "info");
     } catch {
       // notification is best-effort
     }
@@ -120,11 +121,43 @@ export default function bugCorpus(pi: ExtensionAPI): void {
 
   // Session announcement: verified load state, silent outside enrolled repos.
   // The CLI prints nothing without a .bugcorpus directory, so a bare notify
-  // of empty output would be noise: only notify when it says something.
   pi.on("session_start", async (_event, ctx) => {
     const out = await run(["hooks", "session-start"], "", ctx.cwd);
     if (out.trim()) notify(ctx, out.trim().slice(0, 800));
+    await maybeNotifyUpdate(ctx);
   });
+
+  pi.on("session_switch", async (_event, ctx) => {
+    await maybeNotifyUpdate(ctx);
+  });
+
+  // Tool-update notice: cached read only (~instant, never network on
+  // startup). Warns human-only via ctx.ui.notify, at most once per day
+  // per release; the CLI owns throttle + detached refresh. Bootstrap note:
+  // a stale installed tool lacks `update-check`, its spawn fails open and
+  // stays silent until the tool is upgraded once (release notes carry it).
+  // trace:v1 id=impl.omp-bugcorpus.update-notice work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+  const maybeNotifyUpdate = async (ctx: { cwd?: string } & Parameters<Parameters<typeof pi.on>[1]>[1]): Promise<void> => {
+    try {
+      const raw = await run(["--json", "update-check"], "", ctx.cwd);
+      const state = JSON.parse(raw) as {
+        update_available?: boolean;
+        should_notify?: boolean;
+        installed?: string;
+        latest?: string;
+      };
+      if (state.update_available === true && state.should_notify === true) {
+        notify(
+          ctx,
+          `Bug Corpus ${state.installed} is outdated (${state.latest} available). ` +
+            `Run: uv tool install --force bugcorpus, then \`bugcorpus update\` in enrolled repos.`,
+          "warning",
+        );
+      }
+    } catch {
+      // update notice is best-effort; never disturb the session
+    }
+  };
 
   pi.on("tool_result", async (event, ctx) => {
     if (event.toolName !== "edit" && event.toolName !== "write") return;

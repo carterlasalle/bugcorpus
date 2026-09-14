@@ -1,8 +1,11 @@
 // OMP extension contract: registers commands once, hooks cheap, fails open.
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, test } from "bun:test";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import factory from "../../adapters/omp/bug-corpus.ts";
-
 interface Ctx {
   ui?: { notify?: (text: string, level?: string) => void };
   cwd?: string;
@@ -46,12 +49,12 @@ function load(s: ReturnType<typeof stub>): void {
 }
 
 describe("bug-corpus extension", () => {
-  test("registers three commands and two hooks, once across double load", () => {
+  test("registers three commands and three hooks, once across double load", () => {
     const s = stub();
     load(s);
     load(s);
     expect([...s.commands.keys()]).toEqual(["bug-corpus", "bug-learn", "bug-scan"]);
-    expect([...s.handlers.keys()]).toEqual(["session_start", "tool_result"]);
+    expect([...s.handlers.keys()]).toEqual(["session_start", "session_switch", "tool_result"]);
   });
 
   test("tool_result ignores non-edit tools and non-python files", async () => {
@@ -103,7 +106,45 @@ describe("bug-corpus extension", () => {
     load(s);
     const hook = s.handlers.get("session_start");
     if (!hook) throw new Error("session_start handler not registered");
-    await hook({}, { cwd: "/tmp", ui: s.pi.ui });
+    const prev = process.env.BUGCORPUS_CACHE_DIR;
+    process.env.BUGCORPUS_CACHE_DIR = mkdtempSync(`${tmpdir()}/bc-empty-`);
+    try {
+      await hook({}, { cwd: "/tmp", ui: s.pi.ui });
+    } finally {
+      if (prev === undefined) delete process.env.BUGCORPUS_CACHE_DIR;
+      else process.env.BUGCORPUS_CACHE_DIR = prev;
+    }
     expect(s.notes).toEqual([]);
+  }, 120000);
+
+  test("session_switch warns human-only on cached newer version", async () => {
+    const s = stub();
+    load(s);
+    const hook = s.handlers.get("session_switch");
+    if (!hook) throw new Error("session_switch handler not registered");
+    const dir = mkdtempSync(`${tmpdir()}/bc-update-`);
+    mkdirSync(join(dir, "bugcorpus"), { recursive: true });
+    writeFileSync(
+      join(dir, "bugcorpus", "update.json"),
+      JSON.stringify({ latest: "99.0.0", checkedAt: Date.now() / 1000 }),
+    );
+    // Hide any installed `bugcorpus` (a stale tool lacks update-check and
+    // fails open): keep only uv + system dirs so the `uv run` fallback
+    const uvDir = dirname(execFileSync("which", ["uv"]).toString().trim());
+    const emptyBin = mkdtempSync(`${tmpdir()}/bc-emptybin-`);
+    const repo = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
+    const prevPath = process.env.PATH;
+    const prevCache = process.env.BUGCORPUS_CACHE_DIR;
+    process.env.PATH = `${emptyBin}:${uvDir}:/usr/bin:/bin`;
+    process.env.BUGCORPUS_CACHE_DIR = dir;
+    try {
+      await hook({}, { cwd: repo, ui: s.pi.ui });
+    } finally {
+      if (prevPath === undefined) delete process.env.PATH;
+      else process.env.PATH = prevPath;
+      if (prevCache === undefined) delete process.env.BUGCORPUS_CACHE_DIR;
+      else process.env.BUGCORPUS_CACHE_DIR = prevCache;
+    }
+    expect(s.notes.join("\n")).toContain("outdated");
   }, 120000);
 });

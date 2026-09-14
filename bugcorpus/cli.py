@@ -95,6 +95,16 @@ def print_human(data):
         print("\nNext steps:")
         _run_lines(data["next_steps"])
         return
+    if isinstance(data, dict) and "latest" in data and "checked_age_s" in data:
+        if data.get("update_available"):
+            print(f"Bug Corpus {data['installed']} is outdated ({data['latest']} available).")
+            print("  uv tool install --force bugcorpus (or your installer equivalent)")
+            print("  then `bugcorpus update` in enrolled repos")
+        else:
+            print(
+                f"Bug Corpus {data['installed']} is current (latest known: {data.get('latest') or 'unknown'})."
+            )
+        return
     if isinstance(data, dict) and "installed" in data:
         if data.get("installed"):
             print("Installed: " + ", ".join(data["installed"]))
@@ -831,6 +841,27 @@ def cmd_update(a):
     }
 
 
+# trace:v1 id=impl.bugcorpus-cli.update-check work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
+def cmd_update_check(a):
+    """Shared update-notifier entry: cached read, optional detached refresh.
+
+    Foreground path never touches the network: it reports the cached PyPI
+    version and kicks a detached `--refresh` when the cache is stale.
+    Harness adapters (Claude/Codex hooks, OMP extension) call this with
+    --json; future pi/OpenCode shims can do the same.
+    """
+    from . import updatecheck as _uc
+
+    if a.refresh:
+        state = _uc.refresh() or _uc.check()
+        return state
+    state = _uc.check()
+    if state.get("should_notify") and state.get("latest"):
+        _uc.mark_notified(state["latest"])
+    _uc.refresh_in_background_if_stale(state)
+    return state
+
+
 # trace:v1 id=impl.bugcorpus-community.cli work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
 def cmd_community(a):
     from pathlib import Path
@@ -968,15 +999,29 @@ def cmd_hooks_stop() -> None:
 
 # trace:v1 id=impl.bugcorpus-cli.session-start work=WORK-BUG-ZJBDCZZ0 satisfies=REQ-BUG-MKCEMW39
 def cmd_hooks_start() -> None:
-    """Announce verified load state: counts plus per-detector load checks."""
+    """Announce verified load state, plus a cached tool-update notice.
+
+    Update surfacing follows stale-while-revalidate: the cached PyPI
+    version is compared with zero network, and a detached refresh is
+    kicked when the cache is stale. When a notice is due it goes out as
+    a `systemMessage` envelope (human-only in Claude/Codex) with the
+    load announcement as additional context; otherwise plain text.
+    """
     from pathlib import Path as _P
 
     from . import __version__
+    from . import updatecheck as _uc
     from .engines import ENGINES
 
     try:
+        upd = _uc.check()
+        _uc.refresh_in_background_if_stale(upd)
+        note = _uc.notice_text(upd)
         root = _P(store.root())
         if not (root / ".bugcorpus").is_dir():
+            if note and upd.get("latest"):
+                _uc.mark_notified(upd["latest"])
+                print(json.dumps({"systemMessage": note}))
             return  # not enrolled: silent
         cwd = str(root)
         bugs = store.list_bugs(cwd)
@@ -994,15 +1039,21 @@ def cmd_hooks_start() -> None:
                 blocking += 1
             flag = "" if available else " (engine unavailable here)"
             ok.append(f"{did} [{det.engine}{flag}]")
-        print(
+        lines = [
             f"Bug Corpus {__version__} loaded: {len(bugs)} bugs, "
-            f"{len(ok)} detectors ({blocking} blocking), {len(fams)} families."
-        )
+            + f"{len(ok)} detectors ({blocking} blocking), {len(fams)} families."
+        ]
         if ok:
-            print("Detectors verified loadable: " + ", ".join(sorted(ok)) + ".")
+            lines.append("Detectors verified loadable: " + ", ".join(sorted(ok)) + ".")
         for did in sorted(broken):
-            print(f"WARNING: detector {did} failed to load; run `bugcorpus verify`.")
-        print("Run /bug-learn after fixing a bug; /bug-scan to scan.")
+            lines.append(f"WARNING: detector {did} failed to load; run `bugcorpus verify`.")
+        lines.append("Run /bug-learn after fixing a bug; /bug-scan to scan.")
+        announcement = "\n".join(lines)
+        if note and upd.get("latest"):
+            _uc.mark_notified(upd["latest"])
+            print(json.dumps({"systemMessage": note, "additionalContext": announcement}))
+        else:
+            print(announcement)
     except (OSError, ValueError):
         pass  # hooks are advisory; never block session start
     return
@@ -1204,6 +1255,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("update", help="refresh adapters and indexes to this version")
     s.set_defaults(fn=cmd_update)
+
+    s = sub.add_parser("update-check", help="cached tool-update notice (advisory, always exit 0)")
+    s.add_argument(
+        "--refresh", action="store_true", help="fetch PyPI now (runs detached from hooks)"
+    )
+    s.set_defaults(fn=cmd_update_check)
 
     s = sub.add_parser("export", help="export scan findings (sarif)")
     s.add_argument("format", nargs="?", default="sarif")
