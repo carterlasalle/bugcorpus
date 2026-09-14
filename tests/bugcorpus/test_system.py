@@ -281,6 +281,28 @@ def test_human_output_never_dumps_json_for_known_shapes(capsys):
         ({"ok": True, "promoted": ["d"], "skipped": {}}, "Promoted"),
         ({"ok": True, "detector": "d", "from": "shadow", "to": "blocking"}, "blocking"),
         (
+            {
+                "installed": "0.3.1",
+                "latest": "0.4.0",
+                "checked_age_s": 1.0,
+                "stale": False,
+                "update_available": True,
+                "should_notify": True,
+            },
+            "is outdated",
+        ),
+        (
+            {
+                "installed": "0.3.1",
+                "latest": "0.3.1",
+                "checked_age_s": 1.0,
+                "stale": False,
+                "update_available": False,
+                "should_notify": False,
+            },
+            "is current",
+        ),
+        (
             {"status": "findings", "detail": "", "findings": []},
             "detector run: findings",
         ),

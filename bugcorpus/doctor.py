@@ -161,10 +161,20 @@ def doctor() -> dict:
         "codeql": shutil.which("codeql") is not None,
         "pysa": shutil.which("pyre") is not None,
     }
+    from . import updatecheck as _uc
+
+    upd = _uc.check()
+    update = {
+        "installed": upd["installed"],
+        "latest_known": upd["latest"],
+        "cache_age_s": upd["checked_age_s"],
+        "update_available": upd["update_available"],
+    }
     return {
         "tools": tools,
         "engines": engines,
         "corpus": corpus_health(),
+        "update": update,
         "recommendation": "custom+lexical always available; "
         "install ast-grep/semgrep for stronger structural rules",
     }

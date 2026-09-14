@@ -2,6 +2,14 @@
 <!-- trace:v1 id=doc.bugcorpus-changelog work=WORK-BUG-ZJBDCZZ0 -->
 
 
+## 0.4.0 — 2026-09-14
+<!-- trace:v1 id=doc.bugcorpus-release-0-4-0 work=WORK-BUG-ZJBDCZZ0 -->
+
+Tool-update notifier: shared stale-while-revalidate checker (`bugcorpus
+update-check`, cached PyPI version, detached refresh, once-a-day throttle)
+with native human-only surfacing — `systemMessage` envelope on Claude/Codex
+SessionStart, `ctx.ui.notify` warning on OMP session start/switch.
+
 ## 0.3.1 — 2026-09-11
 <!-- trace:v1 id=doc.bugcorpus-release-0-3-1 work=WORK-BUG-ZJBDCZZ0 -->
 
