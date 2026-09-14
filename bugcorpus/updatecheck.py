@@ -25,6 +25,7 @@ import urllib.request
 from pathlib import Path
 
 PACKAGE = "bugcorpus"
+PYPI_URL = "https://pypi.org/pypi/bugcorpus/json"
 STALE_AFTER = 12 * 3600  # refresh the cached latest version at most this often
 NOTIFY_EVERY = 24 * 3600  # remind about the same release at most this often
 REFRESH_TIMEOUT = 10  # seconds; refresh runs detached, never on startup

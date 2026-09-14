@@ -78,6 +78,12 @@ def test_refresh_reads_registry_and_survives_failure(tmp_path, monkeypatch):
     assert (tmp_path / "cache" / "bugcorpus" / "update.json").read_text() == before
 
 
+# trace:v1 id=test.bugcorpus-updatecheck.default-url verifies=REQ-BUG-MKCEMW39
+def test_default_registry_url_resolves_without_override(monkeypatch):
+    monkeypatch.delenv("BUGCORPUS_PYPI_URL", raising=False)
+    assert uc.pypi_url() == "https://pypi.org/pypi/bugcorpus/json"
+
+
 # trace:v1 id=test.bugcorpus-updatecheck.background verifies=REQ-BUG-MKCEMW39
 def test_background_refresh_only_when_stale(tmp_path, monkeypatch):
     import subprocess
