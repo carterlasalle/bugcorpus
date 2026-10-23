@@ -174,3 +174,34 @@ def test_scan_diff_scope():
 
     files, _ = changed_files(REPO, "HEAD...HEAD")
     assert files == []
+
+
+# trace:v1 id=test.bugcorpus-scanner.changed-exclude verifies=REQ-BUG-8HPVNRVG exercises=impl.bugcorpus-scanner.run
+def test_scan_changed_applies_scan_exclude(tmp_path):
+    import subprocess as _sp
+
+    from bugcorpus.scanner import run_scan
+
+    _sp.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    _sp.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    _sp.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    (tmp_path / ".bugcorpus").mkdir()
+    (tmp_path / ".bugcorpus" / "config.toml").write_text(
+        '[scan]\ninclude = ["**/*.json"]\n'
+        'exclude = [".bugcorpus/generated/**"]\ntimeout_seconds = 120\n'
+    )
+    d = tmp_path / ".bugcorpus" / "detectors" / "lex-excl-v1"
+    d.mkdir(parents=True)
+    (d / "detector.yaml").write_text(
+        "id: lex-excl-v1\nengine: lexical\nstate: blocking\nfamily: f\n"
+        "patterns:\n- regex: 'no-acl'\n  message: bad\n"
+    )
+    g = tmp_path / ".bugcorpus" / "generated"
+    g.mkdir(parents=True)
+    (g / "corpus-index.json").write_text('{"note": "--no-acl"}\n')
+    _sp.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    _sp.run(["git", "commit", "-qm", "init"], cwd=tmp_path, check=True)
+    with open(g / "corpus-index.json", "a") as fh:
+        fh.write('{"more": "--no-acl"}\n')
+    res = run_scan(str(tmp_path), scope="changed")
+    assert all("generated" not in f["path"] for f in res["findings"])

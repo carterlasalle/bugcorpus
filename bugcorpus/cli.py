@@ -1348,7 +1348,7 @@ root = ".bugcorpus"
 
 [scan]
 include = [{inc}]
-exclude = [".venv/**", ".git/**", ".bugcorpus/cache/**", "node_modules/**"]
+exclude = [".venv/**", ".git/**", ".bugcorpus/cache/**", ".bugcorpus/generated/**", "node_modules/**"]
 timeout_seconds = 120
 profiles = ["fast", "pr", "full"]
 

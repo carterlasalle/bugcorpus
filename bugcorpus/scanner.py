@@ -44,17 +44,32 @@ def config(cwd=None) -> dict:
 
 
 # trace:exempt reason=internal-detail
+DEFAULT_EXCLUDE = [
+    ".venv/**",
+    ".git/**",
+    ".bugcorpus/cache/**",
+    ".bugcorpus/generated/**",
+    "node_modules/**",
+]
+
+
+# trace:exempt reason=internal-detail
+def is_excluded(rel: str, exc) -> bool:
+    return any(fnmatch.fnmatch(rel, e) or rel.startswith(e.rstrip("*")) for e in exc)
+
+
+# trace:exempt reason=internal-detail
 def collect_files(repo: Path, cfg: dict) -> list[str]:
     if not (repo / ".bugcorpus").is_dir():
         return []  # unenrolled root: never glob an arbitrary tree (e.g. $HOME)
     inc = cfg.get("scan", {}).get("include", ["**/*.py"])
-    exc = set(cfg.get("scan", {}).get("exclude", [".venv/**", ".git/**", ".bugcorpus/cache/**"]))
+    exc = set(cfg.get("scan", {}).get("exclude", DEFAULT_EXCLUDE))
     files = []
     for pat in inc:
         for p in repo.glob(pat):
             if p.is_file():
                 rel = str(p.relative_to(repo))
-                if not any(fnmatch.fnmatch(rel, e) or rel.startswith(e.rstrip("*")) for e in exc):
+                if not is_excluded(rel, exc):
                     files.append(rel)
     return sorted(set(files))
 
@@ -201,6 +216,8 @@ def run_scan(
         file_list = files
     elif scope == "changed" or diff:
         changed, _ = changed_files(repo, diff)
+        exc = set(cfg.get("scan", {}).get("exclude", DEFAULT_EXCLUDE))
+        changed = [f for f in changed if not is_excluded(f, exc)]
         file_list = changed or all_files
     else:
         file_list = all_files
